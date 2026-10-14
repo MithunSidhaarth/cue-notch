@@ -1,0 +1,287 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Cue Switchboard</title>
+<style>
+:root {
+  --ink: #e8e6e1; --dim: #8a8a86; --mute: #55554f; --line: #1d1d1b; --line2: #2a2a27;
+  --amber: #ffb000; --amber-d: #7a5500; --red: #ff3b30; --white: #fff;
+  --mono: "Cascadia Mono", "Cascadia Code", "JetBrains Mono", Consolas, ui-monospace, monospace;
+  --ui: "Segoe UI Variable Text", "Segoe UI", system-ui, sans-serif;
+}
+* { box-sizing: border-box; }
+html, body { margin: 0; height: 100%; }
+body { background: #0c0d10; color: var(--ink); font: 12px/1.5 var(--mono); overflow: hidden; -webkit-font-smoothing: antialiased; }
+button { font: inherit; color: inherit; background: none; border: 0; cursor: pointer; padding: 0; }
+:focus-visible { outline: 1px solid var(--amber); outline-offset: 2px; }
+
+/* desktop backdrop: an editor and a terminal, so the strip is judged in context */
+.desk { position: fixed; inset: 0; display: grid; grid-template-columns: 1fr 1fr; gap: 10px; padding: 64px 14px 150px; }
+.pane { background: #15161a; border: 1px solid #222329; border-radius: 6px; overflow: hidden; color: #7f8a96; font-size: 11.5px; }
+.pane .t { height: 28px; display: flex; align-items: center; padding: 0 10px; border-bottom: 1px solid #222329; color: #5b6470; font-family: var(--ui); font-size: 11px; }
+.pane pre { margin: 0; padding: 12px; white-space: pre-wrap; line-height: 1.6; }
+.pane .k { color: #b392f0; } .pane .s { color: #9ecbff; } .pane .c { color: #4d5562; } .pane .g { color: #85e89d; } .pane .a { color: var(--amber); }
+@media (max-width: 760px) { .desk { grid-template-columns: 1fr; } .desk .pane:last-child { display: none; } }
+
+/* ── The strip ───────────────────────────────────────────────────────── */
+.strip { position: fixed; top: 0; left: 50%; transform: translateX(-50%); z-index: 10; background: #000; overflow: hidden;
+  border-radius: 0 0 14px 14px; box-shadow: 0 0 0 1px #161614, 0 12px 40px rgba(0,0,0,.6); width: 330px; height: 40px;
+  transition: width 160ms cubic-bezier(.2,.8,.2,1), height 160ms cubic-bezier(.2,.8,.2,1); }
+:root[data-rm] .strip { transition: none; }
+.bar { height: 40px; display: flex; align-items: center; gap: 12px; padding: 0 14px 0 10px; }
+.face { width: 44px; height: 26px; flex: none; image-rendering: pixelated; }
+.pips { display: flex; gap: 10px; align-items: center; }
+.pip { display: inline-flex; align-items: center; gap: 4px; font-size: 10.5px; color: var(--dim); letter-spacing: .04em; }
+.pip i { width: 6px; height: 12px; background: var(--mute); }
+.pip.run i { background: var(--ink); animation: run 1.06s steps(1) infinite; }
+.pip.wait i { background: var(--amber); }
+.pip.wait { color: var(--amber); }
+.pip.fail i { background: var(--red); } .pip.fail { color: var(--red); }
+.pip.done i { background: var(--ink); }
+@keyframes run { 50% { opacity: .25; } }
+:root[data-rm] .pip.run i { animation: none; }
+.status { margin-left: auto; color: var(--dim); font-size: 10.5px; letter-spacing: .06em; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; text-transform: uppercase; }
+.status b { color: var(--ink); font-weight: 500; }
+.status.hot b { color: var(--amber); }
+
+.panel { padding: 2px 14px 14px; }
+.lbl { font-size: 10px; letter-spacing: .1em; text-transform: uppercase; color: var(--mute); }
+.row { display: grid; grid-template-columns: 28px 1fr auto; gap: 10px; align-items: baseline; padding: 7px 0; border-top: 1px solid var(--line); }
+.row .tag { color: var(--dim); }
+.row .r { color: var(--mute); text-align: right; }
+
+/* approval */
+.req { border: 1px solid var(--line2); border-left: 2px solid var(--amber); padding: 10px 12px; margin-top: 8px; }
+.req.risk { border-left-color: var(--red); }
+.req .meta { display: flex; gap: 10px; color: var(--dim); font-size: 10.5px; letter-spacing: .04em; }
+.req .meta .who { color: var(--ink); }
+.req .meta .lvl { margin-left: auto; color: var(--amber); }
+.req.risk .meta .lvl { color: var(--red); }
+.cmd { margin-top: 8px; font-size: 13px; color: var(--white); word-break: break-all; }
+.cmd .p { color: var(--mute); }
+.diff { margin-top: 8px; font-size: 11.5px; line-height: 1.55; }
+.diff .m { color: #ff8a80; } .diff .pl { color: #9be39b; } .diff .n { color: var(--mute); }
+.keys { display: flex; gap: 6px; margin-top: 12px; flex-wrap: wrap; }
+.key { display: inline-flex; align-items: center; gap: 8px; height: 26px; padding: 0 10px; border: 1px solid var(--line2); color: var(--ink); font-size: 11px; letter-spacing: .04em; }
+.key kbd { font: inherit; color: #000; background: var(--ink); padding: 0 5px; line-height: 16px; }
+.key.go { border-color: var(--amber); } .key.go kbd { background: var(--amber); }
+.key:hover { background: #111; }
+.queue { margin-top: 8px; color: var(--dim); font-size: 10.5px; letter-spacing: .04em; display: flex; justify-content: space-between; }
+
+/* voice */
+.voice { display: grid; grid-template-columns: 112px 1fr; gap: 14px; align-items: center; padding: 6px 14px 14px; }
+.bigface { width: 112px; height: 68px; image-rendering: pixelated; }
+.vu { display: flex; gap: 3px; align-items: flex-end; height: 18px; margin-top: 6px; }
+.vu i { width: 6px; background: var(--line2); height: 100%; }
+.vu i.on { background: var(--amber); }
+.line { font-family: var(--ui); font-size: 14px; line-height: 1.45; }
+.line .you { color: var(--dim); }
+.who2 { font-size: 10px; letter-spacing: .1em; color: var(--mute); text-transform: uppercase; margin-bottom: 3px; }
+
+/* dock */
+.dock { position: fixed; left: 50%; bottom: 14px; transform: translateX(-50%); z-index: 20; width: min(940px, calc(100% - 24px)); background: #111214; border: 1px solid #23252a; padding: 10px; font-family: var(--ui); color: #c9c7c2; }
+.dock .sc { display: flex; flex-wrap: wrap; gap: 6px; }
+.dock .sc button { height: 28px; padding: 0 10px; border: 1px solid #2a2c31; font-size: 12px; background: #17181c; }
+.dock .sc button[aria-pressed="true"] { border-color: var(--amber); color: #fff; }
+.dock .sc .tour { background: var(--amber); color: #000; border-color: var(--amber); font-weight: 600; }
+.dock .meta { display: flex; gap: 14px; flex-wrap: wrap; margin-top: 8px; font-size: 11.5px; color: #84868c; }
+.dock .meta label { display: inline-flex; gap: 6px; align-items: center; }
+.dock code { font-family: var(--mono); color: #c9c7c2; }
+</style>
+</head>
+<body>
+<div class="desk" aria-hidden="true">
+  <div class="pane"><div class="t">voice.rs — cue — Visual Studio Code</div><pre><span class="k">fn</span> <span class="s">advance</span>(state: &amp;<span class="k">mut</span> State) {
+    <span class="k">let</span> current = state.phase.<span class="s">clone</span>();
+    state.<span class="s">advance</span>();
+    <span class="s">log</span>(&amp;current);
+}
+
+<span class="c">// TODO: timeout + cancel on every voice step</span>
+<span class="k">pub fn</span> <span class="s">voice_ask</span>(q: String) -&gt; Result&lt;String&gt; {
+    ...</pre></div>
+  <div class="pane"><div class="t">Windows Terminal — claude · codex · gemini</div><pre><span class="g">✻ Claude Code</span>  cue
+  ⏺ Read src-tauri/src/voice.rs
+  ⏺ Update(src-tauri/src/voice.rs)  <span class="g">+12</span> <span class="m">−3</span>
+  ⏺ Bash(npm test) <span class="a">… waiting for approval</span>
+
+<span class="g">› codex</span>  notch-site
+  editing app/page.tsx, components/hero.tsx
+
+<span class="g">◆ gemini</span>  infra
+  ✕ terraform plan failed: provider auth</pre></div>
+</div>
+
+<div class="strip" id="strip" role="region" aria-label="Cue" aria-live="polite">
+  <div class="bar">
+    <canvas class="face" id="face" width="88" height="52" aria-hidden="true"></canvas>
+    <div class="pips" id="pips"></div>
+    <div class="status" id="status"></div>
+  </div>
+  <div id="body"></div>
+</div>
+
+<div class="dock" role="toolbar" aria-label="Prototype controls">
+  <div class="sc" id="sc"></div>
+  <div class="meta">
+    <span>Keys: <code>Y</code> allow · <code>N</code> deny · <code>A</code> always this session · <code>Tab</code> next · <code>Space</code> talk · <code>Esc</code> fold</span>
+    <label><input type="checkbox" id="rm"> Reduced motion</label>
+    <span>Prototype data. The app reads real hook events.</span>
+  </div>
+</div>
+
+<script>
+/* ── Cue's face (bigger, always visible in the strip) ─────────────────── */
+const SHELL = [[3,0,18,1],[3,13,18,1],[0,3,1,8],[23,3,1,8],[1,1,2,1],[21,1,2,1],[1,2,1,1],[22,2,1,1],[1,12,2,1],[21,12,2,1],[1,11,1,1],[22,11,1,1]];
+const F = { mood: "idle", level: 0, look: 0 };
+const rm = () => document.documentElement.hasAttribute("data-rm");
+function drawFace(cv, t) {
+  const x = cv.getContext("2d"), W = cv.width, H = cv.height, c = Math.floor(Math.min(W / 24, H / 14));
+  const ox = Math.round((W - c * 24) / 2), oy = Math.round((H - c * 14) / 2);
+  x.clearRect(0, 0, W, H);
+  const m = F.mood;
+  const col = m === "fail" ? "#ff3b30" : m === "sleep" ? "#6b4d00" : "#ffb000";
+  x.fillStyle = col; x.shadowColor = col; x.shadowBlur = m === "sleep" ? 0 : c * 1.2;
+  const cell = (a, b, w = 1, h = 1) => x.fillRect(ox + a * c, oy + b * c, w * c, h * c);
+  SHELL.forEach(s => cell(...s));
+  const blink = !rm() && (t % 3.7) < 0.12, lx = Math.round(F.look);
+  for (const ex of [6 + lx, 15 + lx]) {
+    if (m === "sleep") cell(ex, 6, 3, 1);
+    else if (m === "happy") { cell(ex, 6); cell(ex + 1, 5); cell(ex + 2, 6); }
+    else if (m === "fail") { cell(ex, 4); cell(ex + 2, 4); cell(ex + 1, 5); cell(ex, 6); cell(ex + 2, 6); }
+    else if (m === "wait") cell(ex, 3, 3, 5);
+    else cell(ex, blink ? 5 : 4, 3, blink ? 1 : 4);
+  }
+  if (m === "run") { const n = rm() ? 3 : Math.floor(t * 6) % 4; for (let i = 0; i < n; i++) cell(9 + i * 2, 10); }
+  else if (m === "talk") { const h = Math.max(1, Math.round(F.level * 3)); cell(10, 11 - h, 4, h); }
+  else if (m === "wait") { if (rm() || (t % 1) < .55) cell(10, 10, 4, 1); }
+  else if (m !== "sleep") cell(10, 10, 4, 1);
+}
+
+/* ── Data ─────────────────────────────────────────────────────────────── */
+const AG = {
+  cc: { tag: "CC", name: "Claude Code", proj: "cue" },
+  cx: { tag: "CX", name: "Codex", proj: "notch-site" },
+  gm: { tag: "GM", name: "Gemini", proj: "infra" },
+};
+const REQS = [
+  { a: "cc", cwd: "D:\\dev\\cue", tool: "BASH", cmd: "npm test", lvl: "RUNS A COMMAND", risk: false },
+  { a: "cc", cwd: "D:\\dev\\cue", tool: "EDIT", cmd: "src-tauri/src/voice.rs", lvl: "WRITES A FILE", risk: false,
+    diff: [["n","211 "], ["m","-    let current = &state.phase;"], ["pl","+    let current = state.phase.clone();"], ["n","     state.advance();"]] },
+  { a: "gm", cwd: "D:\\dev\\infra", tool: "BASH", cmd: "git push --force origin main", lvl: "DESTRUCTIVE", risk: true },
+];
+
+const strip = document.getElementById("strip"), body = document.getElementById("body"), pipsEl = document.getElementById("pips"), status = document.getElementById("status");
+const face = document.getElementById("face");
+let queue = [], qi = 0, timers = [], scene = "idle";
+const later = (ms, f) => timers.push(setTimeout(f, ms));
+function pips(states) { pipsEl.innerHTML = Object.entries(states).map(([k, s]) => `<span class="pip ${s}" title="${AG[k].name} · ${s}"><i></i>${AG[k].tag}</span>`).join(""); }
+function size(w, h) { strip.style.width = Math.min(w, innerWidth - 16) + "px"; strip.style.height = h + "px"; }
+function fit() { size(parseInt(strip.style.width) || 330, 40 + body.offsetHeight); }
+
+/* ── Scenes ───────────────────────────────────────────────────────────── */
+const S = {
+  idle() { F.mood = "idle"; pips({ cc: "", cx: "", gm: "" }); status.innerHTML = "<b>3</b> agents · idle"; body.innerHTML = ""; size(330, 40); },
+  working() {
+    F.mood = "run"; pips({ cc: "run", cx: "run", gm: "" }); status.innerHTML = "CC › <b>Update voice.rs</b>"; body.innerHTML = ""; size(420, 40);
+    const steps = ["Read voice.rs", "Update voice.rs  +12 −3", "Grep timeout", "Read pipe.rs"]; let i = 0;
+    const tick = () => { status.innerHTML = `CC › <b>${steps[i++ % steps.length]}</b>`; later(1300, tick); }; later(1300, tick);
+  },
+  peek() {
+    F.mood = "run"; pips({ cc: "run", cx: "run", gm: "fail" }); status.innerHTML = "<b>2</b> working · 1 failed";
+    body.innerHTML = `<div class="panel"><div class="lbl">Sessions</div>
+      <div class="row"><span class="tag">CC</span><span>cue · Update voice.rs <span style="color:#9be39b">+12</span> <span style="color:#ff8a80">−3</span></span><span class="r">4m 12s</span></div>
+      <div class="row"><span class="tag">CX</span><span>notch-site · editing 2 files</span><span class="r">1m 40s</span></div>
+      <div class="row"><span class="tag" style="color:var(--red)">GM</span><span style="color:var(--red)">infra · terraform plan failed: provider auth</span><span class="r">jump ↗</span></div></div>`;
+    size(480, 40); fit();
+  },
+  approve() { queue = REQS.slice(); qi = 0; renderReq(); },
+  done() {
+    F.mood = "happy"; pips({ cc: "done", cx: "run", gm: "" }); status.innerHTML = '<b style="color:var(--ink)">✓ CC · cue</b> · tests 42/42 · 3m 12s'; body.innerHTML = ""; size(440, 40);
+    later(3200, () => { if (scene === "done") S.idle(); });
+  },
+  voice() {
+    F.mood = "listen"; pips({ cc: "run", cx: "", gm: "" }); status.innerHTML = '<b style="color:var(--amber)">● Listening</b> · ElevenLabs';
+    body.innerHTML = `<div class="voice"><canvas class="bigface" id="big" width="224" height="136" aria-hidden="true"></canvas>
+      <div><div class="who2">You</div><div class="line" id="you"></div><div class="vu" id="vu">${"<i></i>".repeat(16)}</div>
+      <div class="who2" style="margin-top:10px">Cue</div><div class="line" id="cue"></div></div></div>`;
+    size(520, 40); fit();
+    const say = (el, text, cps, done) => { let i = 0; const f = () => { el.textContent = text.slice(0, ++i); fit(); if (i < text.length) later(1000 / cps, f); else done && done(); }; f(); };
+    later(500, () => say(document.getElementById("you"), "What's Claude stuck on?", 22, () => {
+      F.mood = "talk"; status.innerHTML = '<b>Speaking</b> · ElevenLabs · Esc to stop';
+      say(document.getElementById("cue"), "It wants to run npm test in the cue repo. Say \"allow\" or press Y.", 30, () => { F.mood = "wait"; status.innerHTML = '<b style="color:var(--amber)">● Listening</b> · say "allow"'; });
+    }));
+  },
+  sleep() { F.mood = "sleep"; pips({ cc: "", cx: "", gm: "" }); status.innerHTML = "paused"; body.innerHTML = ""; size(250, 40); },
+};
+function renderReq() {
+  const r = queue[qi]; if (!r) { go("done"); return; }
+  F.mood = "wait"; pips({ cc: queue.some(q => q.a === "cc") ? "wait" : "run", cx: "run", gm: queue.some(q => q.a === "gm") ? "wait" : "" });
+  status.className = "status hot"; status.innerHTML = `<b>● ${queue.length} waiting on you</b>`;
+  const diff = r.diff ? `<div class="diff">${r.diff.map(([k, l]) => `<div class="${k}">${l.replace(/&/g, "&amp;").replace(/</g, "&lt;")}</div>`).join("")}</div>` : "";
+  body.innerHTML = `<div class="panel">
+    <div class="req ${r.risk ? "risk" : ""}">
+      <div class="meta"><span class="who">${AG[r.a].tag} · ${AG[r.a].name}</span><span>${r.cwd}</span><span class="lvl">● ${r.lvl}</span></div>
+      <div class="cmd"><span class="p">${r.tool} ›</span> ${r.cmd}</div>${diff}
+      <div class="keys">
+        <button class="key go" data-k="y"><kbd>Y</kbd>Allow once</button>
+        <button class="key" data-k="n"><kbd>N</kbd>Deny</button>
+        ${r.risk ? "" : '<button class="key" data-k="a"><kbd>A</kbd>Always for this session</button>'}
+        <button class="key" data-k="t"><kbd>T</kbd>Open terminal</button>
+      </div>
+    </div>
+    <div class="queue"><span>${qi + 1} of ${queue.length}${queue.length > 1 ? " · Tab for next" : ""}</span><span>Never auto-approved · keys work without taking focus</span></div>
+  </div>`;
+  size(560, 40); fit();
+}
+function answer(k) {
+  if (scene !== "approve" || !queue[qi]) return;
+  if (k === "tab") { qi = (qi + 1) % queue.length; renderReq(); return; }
+  if (k === "t") return;
+  const r = queue.splice(qi, 1)[0]; if (qi >= queue.length) qi = 0;
+  status.className = "status"; status.innerHTML = k === "n" ? `<b>✕ Denied</b> · ${r.tool} ${r.cmd}` : `<b>✓ ${k === "a" ? "Always" : "Allowed"}</b> · ${r.tool} ${r.cmd}`;
+  body.innerHTML = ""; size(440, 40); F.mood = k === "n" ? "idle" : "happy";
+  later(900, () => queue.length ? renderReq() : go("done"));
+}
+
+/* ── Controls ─────────────────────────────────────────────────────────── */
+const sc = document.getElementById("sc");
+const NAMES = { idle: "1 Quiet", working: "2 Working", peek: "3 Sessions (hover)", approve: "4 Needs you", done: "5 Done ping", voice: "6 Voice (ElevenLabs)", sleep: "7 Paused" };
+function go(id) { timers.forEach(clearTimeout); timers = []; scene = id; status.className = "status"; S[id](); [...sc.children].forEach(b => b.setAttribute("aria-pressed", b.dataset.id === id)); }
+Object.entries(NAMES).forEach(([id, n]) => { const b = document.createElement("button"); b.dataset.id = id; b.textContent = n; b.onclick = () => { stopTour(); go(id); }; sc.append(b); });
+const tour = document.createElement("button"); tour.className = "tour"; tour.textContent = "▶ Play tour"; sc.append(tour);
+let tt = null; function stopTour() { clearTimeout(tt); tt = null; tour.textContent = "▶ Play tour"; }
+tour.onclick = () => { if (tt) return stopTour(); const seq = [["idle", 1800], ["working", 3600], ["peek", 3400], ["approve", 7000], ["done", 3000], ["voice", 7500], ["sleep", 1500]]; let k = 0; tour.textContent = "■ Stop tour";
+  const n = () => { const [id, ms] = seq[k++ % seq.length]; go(id); if (id === "approve") { later(2600, () => answer("tab")); later(4400, () => answer("y")); } tt = setTimeout(n, ms); }; n(); };
+body.addEventListener("click", e => { const b = e.target.closest("[data-k]"); if (b) answer(b.dataset.k); });
+addEventListener("keydown", e => {
+  if (e.target.tagName === "INPUT") return;
+  const k = e.key.toLowerCase();
+  if (["y", "n", "a", "t"].includes(k)) answer(k);
+  else if (e.key === "Tab" && scene === "approve") { e.preventDefault(); answer("tab"); }
+  else if (e.code === "Space") { e.preventDefault(); stopTour(); go("voice"); }
+  else if (e.key === "Escape") { stopTour(); go("idle"); }
+  else if (/^[1-7]$/.test(e.key)) { stopTour(); go(Object.keys(NAMES)[+e.key - 1]); }
+});
+strip.addEventListener("mouseenter", () => { if (scene === "idle" || scene === "working") go("peek"); });
+strip.addEventListener("mouseleave", () => { if (scene === "peek") go("idle"); });
+addEventListener("mousemove", e => { F.look = Math.max(-1, Math.min(1, (e.clientX - innerWidth / 2) / 400)); });
+document.getElementById("rm").onchange = e => e.target.checked ? document.documentElement.setAttribute("data-rm", "") : document.documentElement.removeAttribute("data-rm");
+
+function frame(now) {
+  const t = now / 1000;
+  if (F.mood === "talk") F.level = rm() ? .6 : .3 + .7 * Math.abs(Math.sin(now / 95));
+  drawFace(face, t);
+  const big = document.getElementById("big"); if (big) drawFace(big, t);
+  const vu = document.getElementById("vu");
+  if (vu) { const lv = F.mood === "talk" || F.mood === "listen" ? (rm() ? .5 : Math.abs(Math.sin(now / 160)) * .9) : 0; [...vu.children].forEach((b, i) => b.classList.toggle("on", i / 16 < lv)); }
+  requestAnimationFrame(frame);
+}
+requestAnimationFrame(frame);
+go("idle");
+setTimeout(() => tour.click(), 600);
+</script>
+</body>
+</html>

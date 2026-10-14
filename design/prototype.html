@@ -1,0 +1,408 @@
+<!doctype html>
+<html lang="en" data-theme="dark">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Cue Prototype</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+/* ── Tokens ─────────────────────────────────────────────────────────────── */
+:root {
+  --bg-desk: #0d0f13;
+  --s0: #000000;          /* notch body */
+  --s1: #121418;          /* raised surface inside notch */
+  --s2: #1a1d23;
+  --line: rgba(255,255,255,.08);
+  --line-strong: rgba(255,255,255,.14);
+  --t1: #f2efe9; --t2: #a5a8ae; --t3: #6c7077;
+  --amber: #ffb347; --amber-2: #ff8a1f; --amber-soft: rgba(255,179,71,.14);
+  --ok: #5fd39a; --warn: #ffb347; --risk: #ff6b5e; --info: #7fb4ff;
+  --r-sm: 8px; --r-md: 12px; --r-lg: 18px;
+  --font: "Inter", "Segoe UI Variable", "Segoe UI", system-ui, sans-serif;
+  --mono: "JetBrains Mono", "Cascadia Code", ui-monospace, monospace;
+  --shadow: 0 18px 50px rgba(0,0,0,.55), 0 2px 8px rgba(0,0,0,.4);
+  --fade: 180ms;
+}
+:root[data-theme="light"] {
+  --bg-desk: #dfe3ea;
+  --s0: #0b0c0f; /* the notch stays dark in light mode, like hardware */
+}
+* { box-sizing: border-box; }
+html, body { margin: 0; height: 100%; }
+body { background: var(--bg-desk); color: var(--t1); font: 13px/1.45 var(--font); overflow: hidden; -webkit-font-smoothing: antialiased; }
+button { font: inherit; color: inherit; }
+:focus-visible { outline: 2px solid var(--amber); outline-offset: 2px; }
+
+/* ── Fake desktop ───────────────────────────────────────────────────────── */
+.desk { position: fixed; inset: 0; background:
+  radial-gradient(1200px 600px at 20% 110%, rgba(255,140,40,.10), transparent 60%),
+  radial-gradient(900px 500px at 90% -10%, rgba(90,120,200,.12), transparent 60%), var(--bg-desk); }
+.win { position: absolute; left: 50%; top: 120px; transform: translateX(-50%); width: min(880px, calc(100% - 32px)); height: calc(100% - 300px); min-height: 260px;
+  background: rgba(20,22,27,.72); border: 1px solid var(--line); border-radius: 10px; backdrop-filter: blur(6px); overflow: hidden; }
+:root[data-theme="light"] .win { background: rgba(255,255,255,.75); color: #1b1d22; }
+.win .bar { height: 34px; border-bottom: 1px solid var(--line); display: flex; align-items: center; padding: 0 12px; gap: 8px; color: var(--t3); font-size: 12px; }
+.win pre { margin: 0; padding: 16px 18px; font: 12.5px/1.65 var(--mono); color: #8fa1b3; white-space: pre-wrap; }
+:root[data-theme="light"] .win pre { color: #4a5563; }
+.win pre .e { color: #ff7a6e; } .win pre .k { color: #c9a0ff; } .win pre .s { color: #9fd49a; }
+
+/* ── Notch ──────────────────────────────────────────────────────────────── */
+.notch { position: fixed; top: 0; left: 50%; transform: translateX(-50%); z-index: 10;
+  background: var(--s0); color: var(--t1); box-shadow: var(--shadow); overflow: hidden;
+  border: 1px solid rgba(255,255,255,.06); border-top: none; will-change: width, height; }
+.notch::before { /* soft top-edge highlight */ content: ""; position: absolute; inset: 0; pointer-events: none;
+  background: linear-gradient(180deg, rgba(255,255,255,.035), transparent 40%); }
+.notch[data-glow="1"]::after { content: ""; position: absolute; left: 10%; right: 10%; bottom: 0; height: 1px;
+  background: linear-gradient(90deg, transparent, var(--amber), transparent); opacity: .7; }
+
+.compact { position: absolute; top: 0; left: 0; right: 0; height: 34px; display: flex; align-items: center; gap: 10px; padding: 0 12px; }
+.compact .lbl { font-size: 12px; color: var(--t2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; flex: 1; transition: opacity var(--fade); }
+.compact .lbl b { color: var(--t1); font-weight: 500; }
+.glyph { width: 30px; height: 20px; image-rendering: pixelated; flex: none; }
+.mic { display: none; align-items: center; gap: 5px; font: 500 10px var(--mono); color: var(--amber); letter-spacing: .06em; flex: none; }
+.mic i { width: 6px; height: 6px; border-radius: 50%; background: var(--amber); box-shadow: 0 0 8px var(--amber); }
+.notch[data-mic="1"] .mic { display: inline-flex; }
+.chip { display: inline-flex; align-items: center; gap: 6px; height: 20px; padding: 0 8px; border-radius: 10px; background: var(--s2); border: 1px solid var(--line); color: var(--t2); font-size: 11px; white-space: nowrap; flex: none; }
+[hidden] { display: none !important; }
+.chip .dot { width: 6px; height: 6px; border-radius: 50%; background: var(--info); }
+.chip.local .dot { background: var(--ok); }
+
+.body { position: absolute; top: 40px; left: 0; right: 0; padding: 0 16px 14px; opacity: 0; transform: translateY(-4px); transition: opacity var(--fade), transform var(--fade); }
+.body.on { opacity: 1; transform: none; }
+
+/* voice */
+.transcript { font-size: 15px; line-height: 1.45; min-height: 22px; }
+.transcript .partial { color: var(--t3); }
+.answer { margin-top: 10px; font-size: 13.5px; color: var(--t1); min-height: 60px; }
+.answer code { font: 12px var(--mono); background: var(--s2); padding: 1px 5px; border-radius: 4px; color: var(--amber); }
+.caret { display: inline-block; width: 7px; height: 13px; background: var(--amber); vertical-align: -2px; margin-left: 2px; animation: blink 1s steps(1) infinite; }
+@keyframes blink { 50% { opacity: 0; } }
+.viz { display: flex; align-items: center; gap: 3px; height: 26px; margin: 10px 0 2px; }
+.viz span { width: 3px; border-radius: 2px; background: var(--amber); height: 3px; transition: height 70ms linear; }
+.ctx { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 10px; }
+.ctx .chip { color: var(--t1); }
+.row { display: flex; align-items: center; gap: 8px; margin-top: 12px; }
+.spacer { flex: 1; }
+.btn { height: 28px; padding: 0 12px; border-radius: 8px; border: 1px solid var(--line-strong); background: var(--s1); cursor: pointer; font-size: 12px; font-weight: 500; }
+.btn:hover { background: var(--s2); }
+.btn.primary { background: var(--amber); color: #1a1205; border-color: transparent; }
+.btn.primary:hover { filter: brightness(1.08); }
+.btn.danger { color: var(--risk); }
+kbd { font: 10.5px var(--mono); color: var(--t3); border: 1px solid var(--line-strong); border-bottom-width: 2px; border-radius: 4px; padding: 0 4px; margin-left: 6px; }
+
+/* approval */
+.risk { display: inline-flex; gap: 6px; align-items: center; font: 500 10.5px var(--mono); letter-spacing: .06em; padding: 3px 7px; border-radius: 5px; }
+.risk.med { color: var(--warn); background: rgba(255,179,71,.12); }
+.risk.high { color: var(--risk); background: rgba(255,107,94,.12); }
+.cmd { margin-top: 10px; padding: 10px 12px; border-radius: var(--r-md); background: var(--s1); border: 1px solid var(--line); font: 12.5px/1.55 var(--mono); color: var(--t1); }
+.cmd .dim { color: var(--t3); }
+.title { font-weight: 600; font-size: 14px; }
+.sub { color: var(--t2); font-size: 12px; margin-top: 2px; }
+
+/* media */
+.media { display: flex; gap: 12px; align-items: center; }
+.art { width: 56px; height: 56px; border-radius: 10px; flex: none; background: conic-gradient(from 200deg, #ff8a1f, #b8430f, #2a1a3a, #ff8a1f); }
+.bar { height: 4px; border-radius: 2px; background: var(--s2); margin-top: 10px; overflow: hidden; }
+.bar i { display: block; height: 100%; width: 38%; background: var(--t1); border-radius: 2px; }
+.times { display: flex; justify-content: space-between; color: var(--t3); font: 10.5px var(--mono); margin-top: 4px; }
+.ctrls { display: flex; justify-content: center; gap: 18px; margin-top: 6px; }
+.ic { width: 32px; height: 32px; border-radius: 50%; border: none; background: transparent; cursor: pointer; display: grid; place-items: center; color: var(--t1); }
+.ic:hover { background: var(--s2); }
+.ic svg { width: 18px; height: 18px; fill: currentColor; }
+
+/* agents */
+.agents { display: grid; gap: 6px; margin-top: 10px; }
+.agent { display: flex; align-items: center; gap: 10px; padding: 8px 10px; border-radius: var(--r-md); background: var(--s1); border: 1px solid var(--line); }
+.agent .st { font: 11px var(--mono); color: var(--t3); margin-left: auto; }
+.agent.need { border-color: rgba(255,179,71,.35); }
+.agent.need .st { color: var(--amber); }
+.pip { width: 8px; height: 8px; border-radius: 50%; background: var(--ok); }
+.agent.need .pip { background: var(--amber); }
+
+/* result */
+.ok { color: var(--ok); font-weight: 500; }
+
+/* ── Controller ─────────────────────────────────────────────────────────── */
+.dock { position: fixed; left: 50%; bottom: 18px; transform: translateX(-50%); z-index: 20; width: min(980px, calc(100% - 32px));
+  background: rgba(18,20,24,.88); border: 1px solid var(--line); border-radius: 14px; padding: 10px; backdrop-filter: blur(10px); color: #e8e6e1; }
+.dock .scenes { display: flex; flex-wrap: wrap; gap: 6px; }
+.dock button.s { height: 30px; padding: 0 10px; border-radius: 8px; border: 1px solid var(--line); background: #1a1d23; color: #c9c8c4; cursor: pointer; font-size: 12px; }
+.dock button.s[aria-pressed="true"] { border-color: var(--amber); color: #fff; background: #2a2116; }
+.dock .meta { display: flex; gap: 14px; align-items: center; margin-top: 8px; color: #8b8e94; font-size: 11.5px; flex-wrap: wrap; }
+.dock label { display: inline-flex; gap: 6px; align-items: center; cursor: pointer; }
+.dock .hint { margin-left: auto; }
+.tour { background: var(--amber) !important; color: #1a1205 !important; border-color: transparent !important; font-weight: 600; }
+
+@media (prefers-reduced-motion: reduce) { .caret { animation: none; } }
+:root[data-motion="reduced"] .caret { animation: none; }
+:root[data-motion="reduced"] .body { transition: none; }
+@media (max-width: 560px) { .dock .hint { display: none; } }
+</style>
+</head>
+<body>
+<div class="desk" aria-hidden="true">
+  <div class="win">
+    <div class="bar">● ● ●&nbsp;&nbsp; terminal — cue-demo</div>
+<pre><span class="k">$</span> cargo test
+   Compiling cue v0.4.0
+error[E0502]: cannot borrow `state` as mutable because it is also borrowed as immutable
+  <span class="e">--> src/voice.rs:212:9</span>
+    |
+211 |     let current = &state.phase;
+212 |     state.advance();
+    |     ^^^^^^^^^^^^^^^ mutable borrow occurs here
+213 |     log(current);
+    |         ------- immutable borrow later used here
+
+<span class="k">$</span> <span class="s">claude</span> "fix the borrow error in voice.rs"
+  ⏺ Reading src/voice.rs …
+  ⏺ Wants to run: npm test</pre>
+  </div>
+</div>
+
+<div class="notch" id="notch" role="region" aria-label="Cue" aria-live="polite">
+  <div class="compact">
+    <canvas class="glyph" id="glyph" width="30" height="20" aria-hidden="true"></canvas>
+    <span class="lbl" id="lbl"></span>
+    <span class="mic" aria-label="Microphone on"><i></i>MIC</span>
+    <span class="chip" id="prov" hidden><span class="dot"></span><span></span></span>
+  </div>
+  <div class="body" id="body"></div>
+</div>
+
+<div class="dock" role="toolbar" aria-label="Prototype controls">
+  <div class="scenes" id="scenes"></div>
+  <div class="meta">
+    <label><input type="checkbox" id="rm"> Reduced motion</label>
+    <label><input type="checkbox" id="lt"> Light desktop</label>
+    <span>Visualiser levels are simulated in this prototype; the app uses the real mic.</span>
+    <span class="hint">Hold <kbd>Space</kbd> to talk · <kbd>Esc</kbd> dismiss · <kbd>1</kbd>–<kbd>9</kbd> scenes</span>
+  </div>
+</div>
+
+<script>
+/* ── Spring (interruptible, measured dt, bounded steps) ────────────────── */
+class Spring {
+  constructor(v, response = 0.42, damping = 0.78) { this.v = v; this.t = v; this.vel = 0; this.set(response, damping); }
+  set(response, damping) { this.w = 2 * Math.PI / response; this.z = damping; }
+  step(dt) {
+    const n = Math.max(1, Math.ceil(dt / (1 / 240))), h = dt / n;
+    for (let i = 0; i < n; i++) { const a = this.w * this.w * (this.t - this.v) - 2 * this.z * this.w * this.vel; this.vel += a * h; this.v += this.vel * h; }
+    if (Math.abs(this.t - this.v) < 0.05 && Math.abs(this.vel) < 0.5) { this.v = this.t; this.vel = 0; return false; }
+    return true;
+  }
+}
+const reduced = () => document.documentElement.dataset.motion === "reduced" || matchMedia("(prefers-reduced-motion: reduce)").matches;
+
+/* ── Glyph (same grid as src/avatar/glyph.ts) ──────────────────────────── */
+const SHELL = [[3,0,18,1],[3,13,18,1],[0,3,1,8],[23,3,1,8],[1,1,2,1],[21,1,2,1],[1,2,1,1],[22,2,1,1],[1,12,2,1],[21,12,2,1],[1,11,1,1],[22,11,1,1]];
+const G = { mood: "idle", look: 0, level: 0, blinkAt: 0 };
+const gc = document.getElementById("glyph"), gx = gc.getContext("2d");
+function fitGlyph() { const d = Math.min(3, devicePixelRatio || 1); gc.width = 30 * d; gc.height = 20 * d; }
+fitGlyph();
+function drawGlyph(t) {
+  const W = gc.width, c = Math.floor(W / 25); const ox = Math.round((W - c * 24) / 2), oy = Math.round((gc.height - c * 14) / 2);
+  gx.clearRect(0, 0, W, gc.height);
+  const asleep = G.mood === "sleep";
+  gx.fillStyle = asleep ? "#8a6328" : (G.mood === "error" ? "#ff8a70" : "#ffb347");
+  gx.shadowColor = "rgba(255,150,40,.9)"; gx.shadowBlur = asleep ? 0 : c * 1.4;
+  const cell = (x, y, w = 1, h = 1) => gx.fillRect(ox + x * c, oy + y * c, w * c, h * c);
+  SHELL.forEach(s => cell(...s));
+  const blink = !reduced() && (t % 4.2) < 0.12;
+  const lx = Math.round(G.look);
+  for (const ex of [6 + lx, 15 + lx]) {
+    const m = G.mood;
+    if (m === "sleep") cell(ex, 6, 3, 1);
+    else if (m === "happy") { cell(ex, 6); cell(ex + 1, 5); cell(ex + 2, 6); }
+    else if (m === "error") { cell(ex, 4); cell(ex + 2, 4); cell(ex + 1, 5); cell(ex, 6); cell(ex + 2, 6); }
+    else if (m === "alert") cell(ex, 3, 3, 5);
+    else if (m === "listen") cell(ex, 3, 3, blink ? 1 : 5);
+    else cell(ex, blink ? 5 : 4, 3, blink ? 1 : 4);
+  }
+  // mouth = cursor
+  const m = G.mood;
+  if (m === "think" || m === "work") { const n = reduced() ? 3 : Math.floor(t * 6) % 4; for (let i = 0; i < n; i++) cell(9 + i * 2, 10); }
+  else if (m === "speak") { const h = Math.max(1, Math.round(G.level * 3)); cell(10, 11 - h, 4, h); }
+  else if (m === "listen") { cell(10, 10, 4, 1); }
+  else if (m !== "sleep") { if (reduced() || (t % 1.1) < 0.6) cell(10, 10, 4, 1); }
+}
+
+/* ── Notch geometry ───────────────────────────────────────────────────── */
+const notch = document.getElementById("notch"), bodyEl = document.getElementById("body"), lbl = document.getElementById("lbl"), prov = document.getElementById("prov");
+const geo = { w: new Spring(150), h: new Spring(34), r: new Spring(17) };
+function shape(w, h, r) {
+  const max = innerWidth - 24; w = Math.min(w, max);
+  if (reduced()) { geo.w.v = geo.w.t = w; geo.h.v = geo.h.t = h; geo.r.v = geo.r.t = r; return; }
+  // Growing is springy; shrinking is calmer (no overshoot back into the screen edge).
+  const grow = h > geo.h.t;
+  for (const s of [geo.w, geo.h, geo.r]) s.set(grow ? 0.46 : 0.34, grow ? 0.74 : 1);
+  geo.w.t = w; geo.h.t = h; geo.r.t = r;
+}
+
+/* ── Scenes ───────────────────────────────────────────────────────────── */
+const ICON = {
+  prev: '<svg viewBox="0 0 24 24"><path d="M6 6h2v12H6zM9.5 12 18 6v12z"/></svg>',
+  play: '<svg viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg>',
+  pause: '<svg viewBox="0 0 24 24"><path d="M7 5h4v14H7zM13 5h4v14h-4z"/></svg>',
+  next: '<svg viewBox="0 0 24 24"><path d="M16 6h2v12h-2zM6 18l8.5-6L6 6z"/></svg>',
+};
+let timers = [], typing = null;
+function later(ms, f) { timers.push(setTimeout(f, ms)); }
+function clearRun() { timers.forEach(clearTimeout); timers = []; if (typing) cancelAnimationFrame(typing); typing = null; G.level = 0; }
+function setBody(html) { bodyEl.classList.remove("on"); bodyEl.innerHTML = html; requestAnimationFrame(() => html && bodyEl.classList.add("on")); }
+function setProv(text, local) { prov.hidden = !text; if (text) { prov.lastElementChild.textContent = text; prov.classList.toggle("local", !!local); } }
+function mic(on) { notch.dataset.mic = on ? "1" : "0"; }
+function streamInto(el, text, cps, done) {
+  let i = 0, last = performance.now();
+  const tick = (now) => {
+    i = Math.min(text.length, i + (now - last) / 1000 * cps); last = now;
+    el.innerHTML = text.slice(0, Math.floor(i)).replace(/`([^`]+)`/g, "<code>$1</code>") + (i < text.length ? '<span class="caret"></span>' : "");
+    G.level = i < text.length ? 0.3 + 0.7 * Math.abs(Math.sin(now / 90)) : 0;
+    if (i < text.length) typing = requestAnimationFrame(tick); else { typing = null; done && done(); }
+  };
+  if (reduced()) { el.innerHTML = text.replace(/`([^`]+)`/g, "<code>$1</code>"); done && done(); return; }
+  typing = requestAnimationFrame(tick);
+}
+function viz(el, ms) { // simulated levels: see the dock note
+  el.innerHTML = "<span></span>".repeat(28);
+  const bars = [...el.children]; const t0 = performance.now();
+  const f = (now) => { const k = now - t0; bars.forEach((b, i) => { const env = Math.max(0, Math.sin((k / 340) + i * 0.45)) * Math.max(0, Math.sin(k / 900)); b.style.height = (3 + env * 22 * (0.4 + Math.random() * 0.6)).toFixed(1) + "px"; G.level = env; });
+    if (k < ms && !reduced()) typing = requestAnimationFrame(f); };
+  typing = requestAnimationFrame(f);
+}
+
+const scenes = [
+  { id: "quiet", name: "Quiet", run() { G.mood = "idle"; mic(0); setProv(); lbl.innerHTML = ""; notch.dataset.glow = "0"; shape(150, 34, 17); setBody(""); } },
+
+  { id: "hover", name: "Hover peek", run() { G.mood = "idle"; mic(0); setProv(); lbl.innerHTML = "<b>10:42</b> · 2 agents working"; shape(300, 34, 17); setBody(""); } },
+
+  { id: "voice", name: "Voice → answer", run() {
+    G.mood = "listen"; mic(1); setProv(); notch.dataset.glow = "1"; lbl.innerHTML = "<b>Listening</b> · release Space to send";
+    shape(520, 140, 22);
+    setBody(`<div class="transcript" id="tr"></div><div class="viz" id="viz"></div>`);
+    later(30, () => viz(document.getElementById("viz"), 2600));
+    const words = "what does this rust error mean".split(" "); let n = 0;
+    const tw = () => { const tr = document.getElementById("tr"); if (!tr) return; n++; tr.innerHTML = words.slice(0, n).join(" ") + ' <span class="partial">…</span>'; if (n < words.length) later(260, tw); };
+    later(400, tw);
+    later(2800, () => {
+      document.getElementById("tr").innerHTML = "What does this Rust error mean?";
+      mic(0); notch.dataset.glow = "0"; G.mood = "think"; lbl.innerHTML = "<b>Thinking</b>"; setProv("Claude · Sonnet 5.5 · cloud");
+      shape(560, 196, 22);
+      document.getElementById("viz").outerHTML = `<div class="ctx"><span class="chip">▣ Terminal — visible window</span><span class="chip">Sent: 14 lines, no files</span></div><div class="answer" id="ans"></div>`;
+    });
+    later(3700, () => {
+      G.mood = "speak"; lbl.innerHTML = "<b>Speaking</b> · Esc to stop";
+      shape(560, 236, 22);
+      streamInto(document.getElementById("ans"),
+        "You borrow `state.phase` immutably, then call `state.advance()`, which needs a mutable borrow while the first one is still used by `log(current)`. Clone the phase first — `let current = state.phase.clone();` — or log before advancing.",
+        70, () => { G.mood = "idle"; lbl.innerHTML = "<b>Answered</b> · Ctrl+C copies"; bodyEl.insertAdjacentHTML("beforeend", `<div class="row"><button class="btn">Copy fix</button><button class="btn">Ask a follow-up</button><span class="spacer"></span><span class="sub">2.1 s to first word</span></div>`); shape(560, 278, 22); });
+    });
+  } },
+
+  { id: "tool", name: "Tool approval", run() {
+    G.mood = "alert"; mic(0); setProv("Claude · Sonnet 5.5 · cloud"); notch.dataset.glow = "1"; lbl.innerHTML = "<b>Needs your OK</b>";
+    shape(540, 226, 22);
+    setBody(`<span class="risk med">● MEDIUM RISK · SENDS A SCREENSHOT</span>
+      <div class="title" style="margin-top:8px">Capture the terminal window and send it to Claude?</div>
+      <div class="sub">Only this window. Nothing is stored after the answer.</div>
+      <div class="cmd"><span class="dim">tool</span> screen.capture <span class="dim">{ window:</span> "Windows Terminal" <span class="dim">}</span></div>
+      <div class="row"><button class="btn danger" data-act="deny">Don't send<kbd>Esc</kbd></button><span class="spacer"></span><button class="btn">Send text only</button><button class="btn primary" data-act="ok">Allow once<kbd>Enter</kbd></button></div>`);
+  } },
+
+  { id: "agent", name: "Agent cockpit", run() {
+    G.mood = "alert"; mic(0); setProv(); notch.dataset.glow = "1"; lbl.innerHTML = "<b>Claude Code</b> wants to run a command";
+    shape(560, 276, 22);
+    setBody(`<span class="risk high">● RUNS A COMMAND · NEVER AUTO-APPROVED</span>
+      <div class="cmd"><span class="dim">D:\\dev\\cue&gt;</span> npm test</div>
+      <div class="agents">
+        <div class="agent need"><span class="pip"></span>Claude Code · cue<span class="st">waiting for you</span></div>
+        <div class="agent"><span class="pip"></span>Codex · notch-site<span class="st">editing 3 files</span></div>
+      </div>
+      <div class="row"><button class="btn danger" data-act="deny">Deny<kbd>Esc</kbd></button><button class="btn">Open terminal</button><span class="spacer"></span><button class="btn primary" data-act="ok">Allow once<kbd>Enter</kbd></button></div>`);
+  } },
+
+  { id: "media", name: "Media", run() {
+    G.mood = "idle"; mic(0); setProv(); notch.dataset.glow = "0"; lbl.innerHTML = "<b>Midnight City</b> · M83";
+    shape(420, 168, 22);
+    setBody(`<div class="media"><div class="art" role="img" aria-label="Album art"></div><div style="flex:1;min-width:0"><div class="title">Midnight City</div><div class="sub">M83 · Spotify</div>
+      <div class="bar"><i></i></div><div class="times"><span>1:38</span><span>4:03</span></div></div></div>
+      <div class="ctrls"><button class="ic" aria-label="Previous">${ICON.prev}</button><button class="ic" aria-label="Pause">${ICON.pause}</button><button class="ic" aria-label="Next">${ICON.next}</button></div>`);
+  } },
+
+  { id: "done", name: "Result + undo", run() {
+    G.mood = "happy"; mic(0); setProv(); notch.dataset.glow = "0"; lbl.innerHTML = '<span class="ok">✓ Moved 3 screenshots to Pictures\\Archive</span>';
+    shape(430, 34, 17); setBody("");
+    lbl.insertAdjacentHTML("afterend", "");
+    later(10, () => { const b = document.createElement("button"); b.className = "chip"; b.textContent = "Undo"; b.style.cursor = "pointer"; b.onclick = () => { lbl.innerHTML = "Restored 3 files"; b.remove(); }; lbl.after(b); later(4500, () => { b.remove(); scenes[0].run(); }); });
+  } },
+
+  { id: "error", name: "Recoverable error", run() {
+    G.mood = "error"; mic(0); setProv("Claude · Sonnet 5.5 · cloud"); notch.dataset.glow = "0"; lbl.innerHTML = "<b>Couldn't reach Claude</b>";
+    shape(500, 122, 22);
+    setBody(`<div class="sub">The request timed out after 20 s. Nothing was sent to another provider.</div>
+      <div class="row"><button class="btn">Retry</button><button class="btn">Use local model (Ollama)</button><span class="spacer"></span><button class="btn">Details</button></div>`);
+  } },
+
+  { id: "sleep", name: "Paused", run() { G.mood = "sleep"; mic(0); setProv(); notch.dataset.glow = "0"; lbl.innerHTML = ""; shape(110, 30, 15); setBody(""); } },
+];
+
+/* ── Controller ───────────────────────────────────────────────────────── */
+const sc = document.getElementById("scenes");
+let current = null;
+function go(id) {
+  clearRun();
+  [...sc.querySelectorAll(".s")].forEach(b => b.setAttribute("aria-pressed", b.dataset.id === id));
+  document.querySelectorAll(".compact .chip:not(#prov)").forEach(e => e.remove());
+  current = scenes.find(s => s.id === id); current.run();
+}
+scenes.forEach((s, i) => { const b = document.createElement("button"); b.className = "s"; b.dataset.id = s.id; b.textContent = `${i + 1} ${s.name}`; b.onclick = () => { stopTour(); go(s.id); }; sc.append(b); });
+const tourBtn = document.createElement("button"); tourBtn.className = "s tour"; tourBtn.textContent = "▶ Play tour"; sc.append(tourBtn);
+let tourT = null;
+function stopTour() { clearTimeout(tourT); tourT = null; tourBtn.textContent = "▶ Play tour"; }
+tourBtn.onclick = () => {
+  if (tourT) return stopTour();
+  const seq = [["quiet", 1600], ["hover", 1800], ["voice", 10500], ["tool", 3800], ["agent", 3800], ["media", 3200], ["done", 3200], ["error", 3200], ["sleep", 1800]];
+  let k = 0; tourBtn.textContent = "■ Stop tour";
+  const nxt = () => { const [id, ms] = seq[k++ % seq.length]; go(id); tourT = setTimeout(nxt, ms); }; nxt();
+};
+bodyEl.addEventListener("click", (e) => {
+  const a = e.target.closest("[data-act]"); if (!a) return;
+  if (a.dataset.act === "ok") { G.mood = "work"; lbl.innerHTML = "<b>Running</b> · npm test"; shape(360, 34, 17); setBody(""); later(1600, () => go("done")); }
+  else { go("quiet"); lbl.innerHTML = "Declined"; shape(200, 34, 17); later(1400, () => go("quiet")); }
+});
+addEventListener("keydown", (e) => {
+  if (e.target.tagName === "INPUT") return;
+  if (e.key === "Escape") { stopTour(); go("quiet"); }
+  else if (e.key === "Enter") bodyEl.querySelector('[data-act="ok"]')?.click();
+  else if (/^[1-9]$/.test(e.key)) { stopTour(); go(scenes[+e.key - 1].id); }
+  else if (e.code === "Space" && !e.repeat) { e.preventDefault(); stopTour(); go("voice"); }
+});
+notch.addEventListener("mouseenter", () => { if (current?.id === "quiet") go("hover"); });
+notch.addEventListener("mouseleave", () => { if (current?.id === "hover") go("quiet"); });
+addEventListener("mousemove", (e) => { const r = notch.getBoundingClientRect(); G.look = Math.max(-1, Math.min(1, (e.clientX - (r.left + 26)) / 300)); });
+document.getElementById("rm").onchange = (e) => { document.documentElement.dataset.motion = e.target.checked ? "reduced" : ""; go(current.id); };
+document.getElementById("lt").onchange = (e) => { document.documentElement.dataset.theme = e.target.checked ? "light" : "dark"; };
+
+// The expanded capsule is exactly as tall as what it shows: no dead space, no jump as answers stream.
+new ResizeObserver(() => {
+  if (!bodyEl.childElementCount) return;
+  const h = 40 + bodyEl.offsetHeight;
+  if (reduced()) { geo.h.v = geo.h.t = h; } else { geo.h.set(0.46, 0.82); geo.h.t = h; }
+}).observe(bodyEl);
+
+/* ── Frame loop ───────────────────────────────────────────────────────── */
+let last = performance.now();
+function frame(now) {
+  const dt = Math.min(0.05, (now - last) / 1000); last = now;
+  geo.w.step(dt); geo.h.step(dt); geo.r.step(dt);
+  notch.style.width = geo.w.v.toFixed(1) + "px"; notch.style.height = geo.h.v.toFixed(1) + "px";
+  const r = Math.max(8, geo.r.v); notch.style.borderRadius = `0 0 ${r}px ${r}px`;
+  drawGlyph(now / 1000);
+  requestAnimationFrame(frame);
+}
+requestAnimationFrame(frame);
+go("quiet");
+setTimeout(() => tourBtn.click(), 700);
+</script>
+</body>
+</html>

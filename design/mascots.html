@@ -1,0 +1,193 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Cue Pets</title>
+<style>
+:root { --bg: #0b0c0f; --card: #131418; --line: #23252b; --ink: #f3f1ec; --dim: #8a8984; --a: #ffb000; }
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--bg); color: var(--ink); font: 13px/1.5 "Segoe UI Variable Text", "Segoe UI", system-ui, sans-serif; padding: 26px 16px 40px; }
+h1 { font-size: 20px; font-weight: 600; margin: 0 auto 4px; max-width: 1240px; }
+.lead { color: var(--dim); max-width: 1240px; margin: 0 auto 14px; }
+.vibes { max-width: 1240px; margin: 0 auto 16px; display: flex; gap: 6px; flex-wrap: wrap; position: sticky; top: 0; z-index: 5; background: var(--bg); padding: 8px 0; }
+.vibes button { height: 32px; padding: 0 12px; border-radius: 16px; border: 1px solid var(--line); background: #15161a; color: #cfcdc7; font: inherit; cursor: pointer; display: inline-flex; gap: 6px; align-items: center; }
+.vibes button[aria-pressed="true"] { border-color: var(--a); color: #fff; background: #241c0c; }
+.vibes .tour { background: var(--a); color: #1a1100; border-color: var(--a); font-weight: 600; }
+.grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 14px; max-width: 1240px; margin: 0 auto; }
+.card { background: var(--card); border: 1px solid var(--line); border-radius: 18px; overflow: hidden; }
+.stage { height: 210px; position: relative; background: radial-gradient(circle at 50% 30%, #1c1d23, #0d0e11 70%); overflow: hidden; }
+/* the notch the pet lives in */
+.notch { position: absolute; top: 0; left: 50%; transform: translateX(-50%); width: 236px; height: 40px; background: #000; border-radius: 0 0 20px 20px; box-shadow: 0 0 0 1px #1a1a1a; overflow: visible; }
+.notch .txt { position: absolute; left: 74px; right: 12px; top: 0; height: 40px; display: flex; align-items: center; gap: 6px; font-size: 11px; color: #b9b7b1; white-space: nowrap; overflow: hidden; }
+.notch .txt b { color: #fff; font-weight: 600; }
+.notch svg.sm { position: absolute; left: 8px; top: 2px; }
+svg.lg { position: absolute; left: 50%; top: 58px; transform: translateX(-50%); }
+.meta { padding: 13px 16px 16px; border-top: 1px solid var(--line); }
+.meta h2 { margin: 0; font-size: 15px; display: flex; align-items: center; gap: 8px; } .meta h2 span { color: var(--a); font-size: 10.5px; font-weight: 600; letter-spacing: .06em; }
+.meta p { margin: 6px 0 0; color: var(--dim); font-size: 12.5px; }
+.legend { max-width: 1240px; margin: 18px auto 0; color: var(--dim); font-size: 12px; }
+@media (prefers-reduced-motion: reduce) { * { animation: none !important; } }
+</style>
+</head>
+<body>
+<h1>Cue pets</h1>
+<p class="lead">Each pet lives in the notch (top of each card, at its real ~28 px size) and is shown large below. Pick a moment to see every pet react to it. Accessories (headphones, notes, zzz, bubbles) are shared, so any pet can wear them.</p>
+<div class="vibes" id="vibes"></div>
+<div class="grid" id="grid"></div>
+<p class="legend">All pets are drawn in code (SVG), use one accent colour, and fall back to a still pose with Reduce motion on. None copies an existing character.</p>
+
+<script>
+const NS = "http://www.w3.org/2000/svg";
+const E = (tag, a, p) => { const e = document.createElementNS(NS, tag); for (const k in a) e.setAttribute(k, a[k]); p && p.append(e); return e; };
+const A = "#ffb000", INK = "#141414", RED = "#ff5a4f";
+
+/* moments: what is happening on the PC, and what the notch line says */
+const VIBES = [
+  ["idle", "Idle", "<b>10:42</b> · all quiet"],
+  ["music", "Music", "<b>Midnight City</b> M83"],
+  ["focus", "Focus", "<b>Focus</b> 18:20 left"],
+  ["listen", "Listening", "<b>Listening…</b>"],
+  ["talk", "Talking", "<b>Cue</b> “Design review at 11:30…”"],
+  ["hermes", "Hermes working", "<b>Hermes</b> reading 12 emails"],
+  ["agent", "Agent needs you", "<b>Claude Code</b> wants npm test"],
+  ["msg", "New message", "<b>Aarav</b> are we still on?"],
+  ["call", "On a call", "<b>Mom</b> 03:12"],
+  ["charge", "Charging", "<b>Charging</b> 64%"],
+  ["done", "Task done", "<b>✓ Tests passed</b> 42/42"],
+  ["error", "Something failed", "<b>Couldn't reach Claude</b>"],
+  ["night", "Night", "<b>11:48 pm</b>"],
+];
+let vibe = "music";
+
+/* ── Shared accessories, placed relative to a pet's head box {cx, top, w} ── */
+function accessories(s, v, t, h, lv) {
+  const { cx, top, w } = h;
+  if (v === "music" || v === "focus") { // headphones
+    E("path", { d: `M${cx - w / 2 - 2} ${top + 18} Q${cx} ${top - 14} ${cx + w / 2 + 2} ${top + 18}`, stroke: "#e8e6e1", "stroke-width": 4, fill: "none", "stroke-linecap": "round" }, s);
+    for (const sx of [-1, 1]) E("rect", { x: cx + sx * (w / 2 + 2) - 5, y: top + 14, width: 10, height: 16, rx: 4, fill: v === "focus" ? "#7ab8ff" : "#ff7ab6" }, s);
+  }
+  if (v === "music") for (let i = 0; i < 2; i++) { const p = (t * .6 + i * .5) % 1; E("text", { x: cx + 26 + i * 10 - p * 6, y: top + 6 - p * 26, "font-size": 12, fill: "#fff", opacity: 1 - p }, s).textContent = "♪"; }
+  if (v === "night") for (let i = 0; i < 3; i++) { const p = (t * .35 + i / 3) % 1; E("text", { x: cx + 18 + p * 18, y: top + 4 - p * 22, "font-size": 9 + i * 2, fill: "#cfd6ff", opacity: 1 - p, "font-weight": 700 }, s).textContent = "z"; }
+  const bubble = (icon, col) => { E("rect", { x: cx + w / 2 - 4, y: top - 22, width: 22, height: 18, rx: 6, fill: col }, s); E("text", { x: cx + w / 2 + 7, y: top - 9, "font-size": 11, "text-anchor": "middle", fill: INK, "font-weight": 800 }, s).textContent = icon; };
+  if (v === "agent") bubble("!", A);
+  if (v === "msg") bubble("✉", "#7ad79c");
+  if (v === "error") bubble("?", RED);
+  if (v === "hermes") { for (let i = 0; i < 3; i++) E("circle", { cx: cx - 10 + i * 10, cy: top - 10, r: 2.6, fill: "#b49cff", opacity: .3 + .7 * ((Math.floor(t * 4) % 3) === i) }, s); }
+  if (v === "charge") E("path", { d: `M${cx + w / 2 + 4} ${top - 12} l-6 10 h5 l-3 9 9 -12 h-5 l3 -7z`, fill: "#ffe066" }, s);
+  if (v === "done") for (let i = 0; i < 6; i++) { const a = i / 6 * Math.PI * 2 + t, r = 30 + 6 * Math.sin(t * 4); E("circle", { cx: cx + Math.cos(a) * r, cy: top + 20 + Math.sin(a) * r * .6, r: 2.2, fill: ["#ffb000", "#7ab8ff", "#ff7ab6"][i % 3] }, s); }
+  if (v === "listen" || v === "talk") { const k = v === "talk" ? lv : .5 + .5 * Math.sin(t * 6); for (const sx of [-1, 1]) E("path", { d: `M${cx + sx * (w / 2 + 8)} ${top + 12} q${sx * 6} 10 0 20`, stroke: A, "stroke-width": 2.5, fill: "none", opacity: .3 + .7 * k, "stroke-linecap": "round" }, s); }
+}
+
+/* common eye/mouth language so every pet reads the same moods */
+function face(s, v, t, ex, ey, gap, lv, col = INK, size = 1) {
+  const blink = (t % 3.7) < .12;
+  for (const x of [ex - gap / 2, ex + gap / 2]) {
+    const lx = x + (v === "msg" || v === "agent" ? 3 : v === "hermes" ? Math.sin(t * 2) * 2 : 0);
+    if (v === "night" || v === "focus" && (t % 4) > 3) E("path", { d: `M${lx - 4 * size} ${ey} q${4 * size} 3 ${8 * size} 0`, stroke: col, "stroke-width": 2.6 * size, fill: "none", "stroke-linecap": "round" }, s);
+    else if (v === "done" || v === "music" && Math.sin(t * 4) > .6) E("path", { d: `M${lx - 4 * size} ${ey + 2} l${4 * size} -5 l${4 * size} 5`, stroke: col, "stroke-width": 2.6 * size, fill: "none", "stroke-linecap": "round", "stroke-linejoin": "round" }, s);
+    else if (v === "error") E("path", { d: `M${lx - 3.5 * size} ${ey - 3.5} l${7 * size} ${7 * size} m0 ${-7 * size} l${-7 * size} ${7 * size}`, stroke: col, "stroke-width": 2.4 * size, "stroke-linecap": "round" }, s);
+    else if (v === "focus") E("rect", { x: lx - 3.5 * size, y: ey - 1, width: 7 * size, height: 3 * size, rx: 1.5, fill: col }, s);
+    else { const big = v === "listen" || v === "agent" ? 1.35 : 1; E("ellipse", { cx: lx, cy: ey, rx: 3.6 * size * big, ry: blink ? .8 : 4.6 * size * big, fill: col }, s); }
+  }
+  const my = ey + 9 * size;
+  if (v === "talk") E("ellipse", { cx: ex, cy: my, rx: 3.5 * size, ry: 1 + 4 * lv * size, fill: col }, s);
+  else if (v === "error") E("path", { d: `M${ex - 4} ${my + 2} q4 -4 8 0`, stroke: col, "stroke-width": 2.2, fill: "none", "stroke-linecap": "round" }, s);
+  else if (v === "done" || v === "music") E("path", { d: `M${ex - 4} ${my - 1} q4 4 8 0`, stroke: col, "stroke-width": 2.2, fill: "none", "stroke-linecap": "round" }, s);
+  else if (v === "agent" || v === "msg") E("circle", { cx: ex, cy: my, r: 2, fill: col }, s);
+}
+
+/* how much the whole pet bobs, squashes and hides per moment */
+function motion(v, t, lv) {
+  return {
+    y: v === "music" ? -Math.abs(Math.sin(t * 4)) * 5 : v === "done" ? -Math.abs(Math.sin(t * 7)) * 8 : v === "night" ? 2 : v === "call" ? 28 : Math.sin(t * 1.6) * 1.2,
+    rot: v === "music" ? Math.sin(t * 4) * 6 : v === "agent" ? Math.sin(t * 14) * 3 : v === "error" ? -6 : 0,
+    sy: v === "talk" ? 1 - .06 * lv : v === "night" ? .94 + .02 * Math.sin(t * 1.2) : 1 + .015 * Math.sin(t * 2),
+    op: v === "call" ? .25 : 1,
+  };
+}
+
+/* ── Pets: body(s, v, t, lv) draws in a 100×100 box and returns its head box ── */
+const PETS = [
+  { name: "Tock", tag: "CAPSULE CREATURE", desc: "The notch's own pill shape as a little creature. Breathes, squashes when it talks, dances with its whole body.",
+    body(s, v, t, lv) { E("rect", { x: 24, y: 40, width: 52, height: 34, rx: 17, fill: v === "error" ? RED : A }, s); face(s, v, t, 50, 54, 18, lv); return { cx: 50, top: 40, w: 52 }; } },
+  { name: "Mote", tag: "FLUFFBALL", desc: "A round dust-bunny with two tiny feet. Fur ripples to music; it curls into a ball at night.",
+    body(s, v, t, lv) { const c = v === "error" ? RED : A;
+      for (let i = 0; i < 18; i++) { const a = i / 18 * Math.PI * 2, r = 22 + 2.5 * Math.sin(i * 3 + t * (v === "music" ? 10 : 2)); E("circle", { cx: 50 + Math.cos(a) * r * .9, cy: 56 + Math.sin(a) * r * .85, r: 6, fill: c }, s); }
+      E("circle", { cx: 50, cy: 56, r: 20, fill: c }, s);
+      if (v !== "night") for (const fx of [42, 58]) E("ellipse", { cx: fx, cy: 78 + (v === "music" ? Math.sin(t * 8 + fx) * 1.5 : 0), rx: 4, ry: 2.5, fill: "#c27a00" }, s);
+      face(s, v, t, 50, 54, 16, lv); return { cx: 50, top: 36, w: 46 }; } },
+  { name: "Nib", tag: "AXOLOTL", desc: "A tiny axolotl that peeks over the notch's bottom edge. Its frills flutter when it listens and glow when an agent needs you.",
+    body(s, v, t, lv) { const c = v === "error" ? RED : "#ffb7c9", fr = v === "agent" ? A : "#ff7ab6";
+      for (const sx of [-1, 1]) for (let i = 0; i < 3; i++) { const wob = v === "listen" || v === "talk" ? Math.sin(t * 10 + i) * 4 : Math.sin(t * 2 + i) * 1.5; E("path", { d: `M${50 + sx * 20} ${48 + i * 6} q${sx * 12} ${-6 + wob} ${sx * 18} ${-2 + i * 2}`, stroke: fr, "stroke-width": 4, fill: "none", "stroke-linecap": "round" }, s); }
+      E("ellipse", { cx: 50, cy: 58, rx: 24, ry: 20, fill: c }, s);
+      E("circle", { cx: 36, cy: 64, r: 3.5, fill: "#ff8fb0", opacity: .7 }, s); E("circle", { cx: 64, cy: 64, r: 3.5, fill: "#ff8fb0", opacity: .7 }, s);
+      face(s, v, t, 50, 56, 20, lv); return { cx: 50, top: 38, w: 48 }; } },
+  { name: "Sprout", tag: "PLANT", desc: "A seedling in a tiny pot. The leaf perks up when things go well, droops on errors, and grows a little over your focus session.",
+    body(s, v, t, lv) { const sway = v === "music" ? Math.sin(t * 4) * 12 : Math.sin(t) * 3, droop = v === "error" || v === "night" ? 18 : v === "done" ? -8 : 0;
+      E("path", { d: `M50 46 q${sway / 2} -10 ${sway / 2} -18`, stroke: "#5fbf6f", "stroke-width": 3, fill: "none" }, s);
+      E("path", { d: `M${50 + sway / 2} 30 q12 ${-10 + droop} 22 ${2 + droop} q-12 6 -22 -2z`, fill: "#7ad79c" }, s);
+      E("path", { d: `M${50 + sway / 2} 32 q-12 ${-8 + droop} -18 ${4 + droop} q10 4 18 -4z`, fill: "#5fbf6f" }, s);
+      E("path", { d: "M30 46 h40 l-5 32 h-30z", fill: v === "error" ? RED : A }, s); E("rect", { x: 28, y: 44, width: 44, height: 7, rx: 3, fill: "#e09600" }, s);
+      face(s, v, t, 50, 60, 16, lv); return { cx: 50, top: 44, w: 44 }; } },
+  { name: "Pip", tag: "CUE LIGHT", desc: "A stage cue-light with one warm eye. Its halo grows with your voice and with its own when it speaks.",
+    body(s, v, t, lv) { const c = v === "error" ? RED : A, halo = v === "talk" ? 30 + 12 * lv : v === "listen" ? 32 + 4 * Math.sin(t * 5) : 28;
+      E("circle", { cx: 50, cy: 56, r: halo, fill: c, opacity: .14 }, s); E("circle", { cx: 50, cy: 56, r: 22, fill: c }, s); E("circle", { cx: 43, cy: 48, r: 6, fill: "#fff", opacity: .3 }, s);
+      if (v === "night") E("rect", { x: 41, y: 55, width: 18, height: 3.5, rx: 2, fill: INK }, s);
+      else if (v === "done") E("path", { d: "M42 58 q8 -10 16 0", stroke: INK, "stroke-width": 4, fill: "none", "stroke-linecap": "round" }, s);
+      else E("circle", { cx: 50 + (v === "hermes" ? Math.cos(t * 3) * 5 : Math.sin(t * .7) * 4), cy: 55, r: (t % 4) < .12 ? 1 : 7, fill: INK }, s);
+      return { cx: 50, top: 34, w: 44 }; } },
+  { name: "Drop", tag: "LIGHT · NO FACE", desc: "A frosted droplet that takes the album art's colour and ripples with sound. For people who want something pretty, not a character.",
+    body(s, v, t, lv) { const id = "g" + Math.random().toString(36).slice(2, 7), d = E("defs", {}, s), g = E("radialGradient", { id, cx: "35%", cy: "30%", r: "80%" }, d);
+      const c = v === "error" ? RED : v === "night" ? "#555a66" : v === "focus" ? "#7ab8ff" : v === "msg" ? "#7ad79c" : v === "hermes" ? "#b49cff" : `hsl(${24 + 20 * Math.sin(t * .4)} 100% 58%)`;
+      E("stop", { offset: 0, "stop-color": "#fff", "stop-opacity": .9 }, g); E("stop", { offset: .35, "stop-color": c }, g); E("stop", { offset: 1, "stop-color": c, "stop-opacity": .35 }, g);
+      const k = v === "talk" ? 1 + .2 * lv : v === "music" ? 1 + .08 * Math.abs(Math.sin(t * 4)) : 1;
+      if (v === "listen" || v === "talk") E("circle", { cx: 50, cy: 56, r: 30 * k, fill: "none", stroke: c, "stroke-opacity": .35, "stroke-width": 2 }, s);
+      E("ellipse", { cx: 50, cy: 56, rx: 22 * k, ry: 22 * k, fill: `url(#${id})` }, s); return { cx: 50, top: 34, w: 44, noface: true }; } },
+  { name: "Glyph", tag: "CURRENT · PIXEL", desc: "Today's pixel capsule with block eyes and a cursor mouth. Kept for comparison.",
+    body(s, v, t, lv) { const c = v === "error" ? RED : A, u = 2.4, ox = 21, oy = 40, cell = (x, y, w = 1, h = 1) => E("rect", { x: ox + x * u, y: oy + y * u, width: w * u, height: h * u, fill: c }, s);
+      [[3,0,18,1],[3,13,18,1],[0,3,1,8],[23,3,1,8],[1,1,2,1],[21,1,2,1],[1,2,1,1],[22,2,1,1],[1,12,2,1],[21,12,2,1],[1,11,1,1],[22,11,1,1]].forEach(r => cell(...r));
+      for (const ex of [6, 15]) { if (v === "done") { cell(ex, 6); cell(ex + 1, 5); cell(ex + 2, 6); } else if (v === "night" || v === "focus") cell(ex, 6, 3, 1); else if (v === "error") { cell(ex, 4); cell(ex + 2, 4); cell(ex + 1, 5); cell(ex, 6); cell(ex + 2, 6); } else cell(ex, (t % 3.8) < .12 ? 5 : 4, 3, (t % 3.8) < .12 ? 1 : 4); }
+      if (v === "talk") { const h = Math.max(1, Math.round(lv * 3)); cell(10, 11 - h, 4, h); } else if (v === "hermes") { const n = Math.floor(t * 6) % 4; for (let i = 0; i < n; i++) cell(9 + i * 2, 10); } else if (v !== "night") cell(10, 10, 4, 1);
+      return { cx: 50, top: 40, w: 58 }; } },
+  { name: "Kip", tag: "CAT · PEEKING", desc: "A minimal cat whose ears poke out from the notch's edge. Ears swivel toward sounds, flatten on errors, twitch at messages.",
+    body(s, v, t, lv) { const c = v === "error" ? RED : A, ear = v === "error" ? 14 : v === "msg" ? Math.sin(t * 20) * 5 : v === "listen" ? -6 : 0;
+      for (const sx of [-1, 1]) E("path", { d: `M${50 + sx * 10} 44 L${50 + sx * (20 + ear / 3)} ${30 + Math.abs(ear) * .4} L${50 + sx * 24} 48z`, fill: c, "stroke-linejoin": "round", stroke: c, "stroke-width": 3 }, s);
+      E("ellipse", { cx: 50, cy: 58, rx: 25, ry: 19, fill: c }, s);
+      face(s, v, t, 50, 56, 20, lv);
+      if (v !== "talk") for (const sx of [-1, 1]) E("path", { d: `M${50 + sx * 15} 64 h${sx * 12}`, stroke: "#7a4c00", "stroke-width": 1.5, "stroke-linecap": "round" }, s);
+      return { cx: 50, top: 36, w: 50 }; } },
+];
+
+/* ── Build cards ──────────────────────────────────────────────────────── */
+const grid = document.getElementById("grid");
+for (const p of PETS) {
+  const c = document.createElement("article"); c.className = "card";
+  c.innerHTML = `<div class="stage"><div class="notch"><svg class="sm" width="60" height="44" viewBox="18 26 64 58"></svg><div class="txt"></div></div><svg class="lg" width="150" height="150" viewBox="0 0 100 100"></svg></div>
+    <div class="meta"><h2>${p.name}<span>${p.tag}</span></h2><p>${p.desc}</p></div>`;
+  p.sm = c.querySelector(".sm"); p.lg = c.querySelector(".lg"); p.txt = c.querySelector(".txt");
+  grid.append(c);
+}
+const vb = document.getElementById("vibes");
+for (const [id, label] of VIBES) { const b = document.createElement("button"); b.textContent = label; b.dataset.v = id; b.setAttribute("aria-pressed", id === vibe); b.onclick = () => set(id); vb.append(b); }
+const tour = document.createElement("button"); tour.className = "tour"; tour.textContent = "▶ Play a day"; vb.append(tour);
+let tt = null; tour.onclick = () => { if (tt) { clearInterval(tt); tt = null; tour.textContent = "▶ Play a day"; return; } let k = 0; tour.textContent = "■ Stop"; set(VIBES[0][0]); tt = setInterval(() => set(VIBES[++k % VIBES.length][0]), 2200); };
+function set(id) { vibe = id; [...vb.querySelectorAll("[data-v]")].forEach(b => b.setAttribute("aria-pressed", b.dataset.v === id)); const line = VIBES.find(x => x[0] === id)[2]; for (const p of PETS) p.txt.innerHTML = line; }
+set(vibe);
+
+const still = matchMedia("(prefers-reduced-motion: reduce)").matches;
+function draw(p, svg, t, lv) {
+  svg.innerHTML = ""; const m = motion(vibe, still ? 0 : t, lv);
+  const g = E("g", { transform: `translate(50 ${70 + m.y}) rotate(${m.rot}) scale(1 ${m.sy}) translate(-50 -70)`, opacity: m.op }, svg);
+  const head = p.body(g, vibe, still ? 0 : t, lv);
+  accessories(g, vibe, still ? 0 : t, head, lv);
+}
+function frame(now) {
+  const t = now / 1000, lv = vibe === "talk" ? .3 + .7 * Math.abs(Math.sin(now / 95)) : 0;
+  for (const p of PETS) { draw(p, p.sm, t, lv); draw(p, p.lg, t, lv); }
+  requestAnimationFrame(frame);
+}
+requestAnimationFrame(frame);
+</script>
+</body>
+</html>

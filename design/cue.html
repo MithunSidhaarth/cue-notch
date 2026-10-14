@@ -1,0 +1,934 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Cue Prototype</title>
+<style>
+:root {
+  --bg: #0b0c0f;
+  --glass: rgba(13, 14, 18, .86);
+  --tile: rgba(255, 255, 255, .045);
+  --tile-h: rgba(255, 255, 255, .07);
+  --line: rgba(255, 255, 255, .075);
+  --ink: #f3f1ec; --ink2: #bdbbb5; --dim: #85847f; --mute: #55554f;
+  --accent: #ffb000; --accent-ink: #1a1100; --accent-soft: rgba(255, 176, 0, .14);
+  --ok: #67d996; --bad: #ff5a4f; --blue: #7ab8ff;
+  --tint: 255, 140, 60;
+  --ui: "Segoe UI Variable Text", "Segoe UI", system-ui, sans-serif;
+  --disp: "Segoe UI Variable Display", "Segoe UI", system-ui, sans-serif;
+  --mono: "Cascadia Mono", "JetBrains Mono", Consolas, ui-monospace, monospace;
+  --r: 16px; --gap: 10px; --pad: 14px;
+  --ease: cubic-bezier(.2, .85, .25, 1);
+}
+* { box-sizing: border-box; min-width: 0; }
+html, body { margin: 0; height: 100%; }
+body { background: var(--bg); color: var(--ink); font: 13px/1.4 var(--ui); overflow: hidden; -webkit-font-smoothing: antialiased; }
+button { font: inherit; color: inherit; background: none; border: 0; cursor: pointer; padding: 0; }
+:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; border-radius: 6px; }
+.num { font-variant-numeric: tabular-nums; }
+.ell { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+svg.i { width: 15px; height: 15px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; flex: none; }
+
+.wall { position: fixed; inset: 0; background:
+  radial-gradient(900px 600px at 15% 100%, rgba(var(--tint), .2), transparent 60%),
+  radial-gradient(800px 500px at 100% 0%, rgba(80, 110, 200, .16), transparent 60%),
+  linear-gradient(160deg, #10131a, #0b0c0f 60%); }
+.wall::after { content: ""; position: absolute; inset: 0; background-image: radial-gradient(rgba(255,255,255,.03) 1px, transparent 1px); background-size: 22px 22px; }
+
+/* ── Notch ───────────────────────────────────────────────────────────── */
+.notch { position: fixed; top: 0; left: 50%; transform: translateX(-50%); z-index: 10;
+  width: 320px; height: 40px; background: #000; border-radius: 0 0 20px 20px; overflow: hidden;
+  box-shadow: 0 0 0 1px rgba(255,255,255,.05), 0 24px 70px rgba(0,0,0,.6);
+  transition: width 420ms var(--ease), height 420ms var(--ease), border-radius 420ms var(--ease), background 300ms; }
+.notch.open { width: min(1000px, calc(100vw - 24px)); height: 448px; border-radius: 0 0 28px 28px;
+  background: linear-gradient(180deg, rgba(var(--tint), .10), transparent 45%), var(--glass); backdrop-filter: blur(28px) saturate(1.3); }
+.notch.open.tall { height: min(660px, calc(100vh - 16px)); width: min(1040px, calc(100vw - 24px)); }
+:root[data-rm] * { transition: none !important; animation: none !important; }
+:root[data-noface] .face, :root[data-noface] .bigface { display: none; }
+
+.bar { position: absolute; inset: 0 0 auto 0; height: 40px; display: flex; align-items: center; gap: 10px; padding: 0 16px 0 10px; }
+:root[data-noface] .bar { padding-left: 14px; }
+.face { width: 44px; height: 26px; flex: none; image-rendering: pixelated; }
+.live { display: flex; align-items: center; gap: 8px; flex: 1; font-size: 12px; color: var(--ink2); }
+.live .art-s { width: 20px; height: 20px; border-radius: 5px; flex: none; background: var(--cover); }
+.live b { color: var(--ink); font-weight: 600; }
+.eq { display: inline-flex; gap: 2px; align-items: flex-end; height: 12px; flex: none; }
+.eq i { width: 2px; background: rgb(var(--tint)); border-radius: 1px; height: 4px; }
+.adot { display: flex; gap: 4px; flex: none; }
+.adot i { width: 6px; height: 6px; border-radius: 2px; background: var(--mute); }
+.adot i.run { background: var(--ink); } .adot i.wait { background: var(--accent); box-shadow: 0 0 6px var(--accent); }
+.clock { font: 600 12px var(--disp); flex: none; }
+.mic { display: none; align-items: center; gap: 5px; font: 600 10px var(--mono); color: var(--accent); letter-spacing: .08em; flex: none; }
+.mic::before { content: ""; width: 6px; height: 6px; border-radius: 50%; background: var(--accent); }
+.notch[data-mic] .mic { display: inline-flex; }
+
+.toast { position: absolute; inset: 0 0 auto 0; height: 40px; display: flex; align-items: center; gap: 10px; padding: 0 16px 0 62px; font-size: 12px; background: #000; transform: translateY(-100%); transition: transform 300ms var(--ease); z-index: 2; }
+.notch.toasting .toast { transform: none; }
+.toast .ap { width: 20px; height: 20px; border-radius: 6px; background: #25d366; flex: none; }
+
+/* ── Page frame ──────────────────────────────────────────────────────── */
+.frame { position: absolute; top: 48px; left: 16px; right: 16px; bottom: 16px; display: grid; grid-template-rows: 30px 1fr; gap: 10px;
+  opacity: 0; transform: translateY(-6px); transition: opacity 220ms var(--ease) 80ms, transform 320ms var(--ease) 60ms; pointer-events: none; }
+.notch.open .frame { opacity: 1; transform: none; pointer-events: auto; }
+.nav { display: flex; align-items: center; gap: 4px; }
+.nav [role=tab] { height: 28px; padding: 0 13px; border-radius: 14px; color: var(--dim); font-size: 12.5px; font-weight: 500; }
+.nav [role=tab]:hover { color: var(--ink2); }
+.nav [role=tab][aria-selected="true"] { background: var(--tile-h); color: var(--ink); }
+.nav .sp { flex: 1; }
+.nav .icb { width: 28px; padding: 0; display: grid; place-items: center; }
+.icb[aria-pressed="true"] { color: var(--accent); }
+
+.pages { position: relative; overflow: hidden; }
+.pg { position: absolute; inset: 0; display: none; }
+.pg.on { display: grid; animation: in 240ms var(--ease); }
+@keyframes in { from { opacity: 0; transform: translateY(4px); } }
+
+.tile { background: var(--tile); border: 1px solid var(--line); border-radius: var(--r); padding: var(--pad); display: grid; grid-template-rows: 18px 1fr; gap: 10px; overflow: hidden; transition: background 160ms; }
+.tile:hover { background: var(--tile-h); }
+.th { display: flex; align-items: center; gap: 6px; font: 600 10.5px var(--ui); letter-spacing: .08em; text-transform: uppercase; color: var(--dim); white-space: nowrap; }
+.th .r { margin-left: auto; text-transform: none; letter-spacing: 0; font-weight: 500; display: inline-flex; align-items: center; gap: 5px; overflow: hidden; text-overflow: ellipsis; }
+.tb { display: flex; flex-direction: column; overflow: hidden; }
+.sub { color: var(--dim); font-size: 12px; }
+.btn { height: 28px; padding: 0 12px; border-radius: 14px; background: var(--tile-h); border: 1px solid var(--line); font-size: 12px; font-weight: 500; white-space: nowrap; display: inline-flex; align-items: center; gap: 6px; }
+.btn:hover { background: rgba(255,255,255,.12); }
+.btn.acc { background: var(--accent); color: var(--accent-ink); border-color: transparent; }
+
+/* HOME: 4 columns × 2 rows; media spans both rows, Cue spans two columns */
+#home { grid-template-columns: 1.15fr 1fr 1fr 1fr 1fr; grid-template-rows: 1fr 1fr; gap: var(--gap); }
+.media { grid-row: span 2; grid-template-rows: 1fr auto; background: linear-gradient(180deg, rgba(var(--tint), .26), rgba(var(--tint), .03) 75%), var(--tile); }
+.cover { border-radius: 12px; background: var(--cover); position: relative; box-shadow: 0 10px 30px rgba(var(--tint), .22); min-height: 0; }
+.viz { position: absolute; left: 10px; right: 10px; bottom: 10px; display: flex; gap: 3px; align-items: flex-end; height: 24px; }
+.viz i { flex: 1; border-radius: 2px; background: rgba(255,255,255,.75); height: 3px; }
+.trk { font: 600 15px var(--disp); margin-top: 2px; }
+.prog { height: 4px; border-radius: 2px; background: rgba(255,255,255,.12); margin-top: 10px; overflow: hidden; }
+.prog i { display: block; height: 100%; width: 38%; background: var(--ink); }
+.times { display: flex; justify-content: space-between; font: 10.5px var(--mono); color: var(--dim); margin-top: 4px; }
+.ctrl { display: flex; justify-content: center; align-items: center; gap: 18px; margin-top: 8px; }
+.ctrl button { width: 34px; height: 34px; border-radius: 50%; display: grid; place-items: center; }
+.ctrl button:hover { background: rgba(255,255,255,.08); }
+.ctrl .pp { width: 42px; height: 42px; background: var(--ink); color: #000; }
+.ctrl .pp:hover { background: #fff; }
+.ctrl svg { width: 16px; height: 16px; fill: currentColor; }
+
+.cue { grid-column: span 2; background: linear-gradient(135deg, var(--accent-soft), transparent 55%), var(--tile); }
+.cue .tb { flex-direction: row; gap: 16px; align-items: center; }
+.cue .bigface { width: 84px; height: 50px; image-rendering: pixelated; flex: none; }
+.cue .txt { flex: 1; display: flex; flex-direction: column; gap: 8px; justify-content: center; }
+.cue .q { color: var(--dim); font-size: 12.5px; }
+.cue .a { font: 500 13.5px/1.4 var(--ui); display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+.cue .row { display: flex; gap: 10px; align-items: center; }
+.vu { display: flex; gap: 2px; align-items: center; height: 16px; flex: none; }
+.vu i { width: 3px; border-radius: 2px; background: var(--accent); height: 3px; }
+.herm { font-size: 11.5px; color: var(--ink2); flex: 1; }
+.herm b { color: var(--accent); font-weight: 600; }
+
+.today .tb { gap: 2px; }
+.today .big { font: 600 30px/1.05 var(--disp); }
+.today .ev { margin-top: auto; padding-left: 9px; border-left: 2px solid var(--blue); }
+.today .ev b { display: block; font-weight: 600; font-size: 12.5px; }
+
+.focus .tb { flex-direction: row; align-items: center; gap: 12px; }
+.ring { width: 64px; height: 64px; flex: none; }
+.focus .ft { font: 600 20px var(--mono); }
+.focus .col { display: flex; flex-direction: column; gap: 6px; }
+
+.agents .a { display: flex; align-items: center; gap: 8px; height: 22px; font-size: 12.5px; }
+.agents .a i { width: 7px; height: 7px; border-radius: 2px; background: var(--ok); flex: none; }
+.agents .a.w i { background: var(--accent); box-shadow: 0 0 6px var(--accent); }
+.agents .a .m { color: var(--dim); margin-left: auto; font: 11px var(--mono); flex: none; }
+.appr { margin-top: auto; display: flex; align-items: center; gap: 6px; padding: 6px 6px 6px 10px; border-radius: 12px; background: var(--accent-soft); font: 11.5px var(--mono); }
+.appr { flex-wrap: wrap; } .appr span { flex: 1 0 100%; }
+.appr .btn { height: 24px; padding: 0 10px; }
+
+.todo { grid-column: span 2; }
+.todo label { display: flex; gap: 9px; align-items: center; height: 26px; font-size: 12.5px; cursor: pointer; }
+.todo input { accent-color: var(--accent); width: 15px; height: 15px; margin: 0; flex: none; }
+.todo label:has(input:checked) span { color: var(--mute); text-decoration: line-through; }
+
+.clip .c { display: flex; gap: 8px; align-items: center; height: 28px; padding: 0 8px; border-radius: 8px; background: rgba(255,255,255,.035); margin-bottom: 5px; font-size: 12px; cursor: pointer; }
+.clip .c:hover { background: rgba(255,255,255,.08); }
+.clip .k { font: 600 9.5px var(--mono); color: var(--dim); width: 32px; flex: none; }
+
+.sys .s { display: grid; grid-template-columns: 16px 1fr 26px; align-items: center; gap: 8px; height: 24px; font-size: 12px; color: var(--dim); }
+.range { -webkit-appearance: none; appearance: none; width: 100%; height: 4px; border-radius: 2px; background: linear-gradient(var(--ink), var(--ink)) 0/var(--v, 50%) 100% no-repeat, rgba(255,255,255,.14); margin: 0; }
+.range::-webkit-slider-thumb { -webkit-appearance: none; width: 12px; height: 12px; border-radius: 50%; background: #fff; box-shadow: 0 1px 3px rgba(0,0,0,.5); }
+.qa { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; margin-top: auto; }
+.qa button { height: 32px; border-radius: 10px; background: rgba(255,255,255,.05); display: grid; place-items: center; color: var(--ink2); }
+.qa button:hover { background: rgba(255,255,255,.1); }
+.qa button[aria-pressed="true"] { background: var(--accent); color: var(--accent-ink); }
+.batt { display: inline-block; width: 18px; height: 9px; border: 1.5px solid currentColor; border-radius: 2px; position: relative; }
+.batt::after { content: ""; position: absolute; inset: 1px; right: auto; width: 82%; background: var(--ok); border-radius: 1px; }
+
+/* MEDIA */
+#media { grid-template-columns: 300px 1fr; gap: var(--gap); }
+#media .player { grid-template-rows: 18px 1fr auto; background: linear-gradient(180deg, rgba(var(--tint), .3), rgba(var(--tint), .03) 80%), var(--tile); }
+#media .player .cover { justify-self: center; width: 100%; max-width: 230px; aspect-ratio: 1; max-height: 100%; }
+.sess { display: grid; grid-template-columns: 40px 1fr auto; gap: 12px; align-items: center; padding: 8px; border-radius: 12px; cursor: pointer; }
+.sess:hover { background: var(--tile); }
+.sess .ic { width: 40px; height: 40px; border-radius: 9px; }
+.sess.on { background: var(--tile-h); }
+.lyr { font: 500 17px/1.5 var(--disp); color: var(--mute); }
+.lyr b { color: var(--ink); font-weight: 600; }
+.right { display: grid; grid-template-rows: auto 1fr; gap: var(--gap); }
+
+/* FILES */
+#files { grid-template-columns: 1fr 1fr; gap: var(--gap); }
+.drop { flex: 1; border: 1.5px dashed rgba(255,255,255,.16); border-radius: 12px; display: flex; flex-direction: column; gap: 4px; align-items: center; justify-content: center; color: var(--dim); font-size: 12.5px; text-align: center; transition: border-color 150ms, background 150ms; }
+.drop.over { border-color: var(--accent); background: var(--accent-soft); color: var(--ink); }
+.shelf { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 10px; }
+.file { width: 74px; display: flex; flex-direction: column; gap: 4px; align-items: center; font-size: 11px; color: var(--ink2); }
+.file .doc { width: 44px; height: 54px; border-radius: 8px; background: linear-gradient(180deg, #2c313c, #1b1e26); border: 1px solid var(--line); display: grid; place-items: end center; padding-bottom: 5px; font: 600 9px var(--mono); color: var(--accent); }
+.file span { width: 100%; text-align: center; }
+.search { height: 30px; border-radius: 10px; background: rgba(255,255,255,.05); border: 1px solid var(--line); color: var(--ink); padding: 0 10px; font: inherit; width: 100%; margin-bottom: 8px; flex: none; }
+.cliplist { overflow: auto; }
+
+/* PHONE */
+#phone { grid-template-columns: 1fr 1.2fr 1fr; gap: var(--gap); }
+.call { background: linear-gradient(180deg, rgba(103,217,150,.16), transparent 70%), var(--tile); }
+.call .tb { align-items: center; justify-content: center; gap: 6px; text-align: center; }
+.av { width: 56px; height: 56px; border-radius: 50%; background: linear-gradient(135deg,#6d8bff,#a46bff); display: grid; place-items: center; font: 600 20px var(--disp); }
+.callbtns { display: flex; gap: 14px; margin-top: 8px; }
+.cb { width: 44px; height: 44px; border-radius: 50%; display: grid; place-items: center; }
+.cb.ok { background: var(--ok); color: #03180c; } .cb.no { background: var(--bad); color: #fff; }
+.msg { display: grid; grid-template-columns: 30px 1fr auto; gap: 10px; align-items: center; padding: 7px 4px; border-bottom: 1px solid var(--line); font-size: 12.5px; }
+.msg .ap { width: 30px; height: 30px; border-radius: 8px; }
+.msg .t { font-size: 11px; color: var(--dim); }
+.send textarea { width: 100%; flex: 1; resize: none; border-radius: 10px; background: rgba(255,255,255,.05); border: 1px solid var(--line); color: var(--ink); padding: 8px 10px; font: inherit; }
+.send .row2 { display: flex; gap: 6px; margin-top: 8px; align-items: center; }
+
+/* AGENTS */
+#agents { grid-template-columns: 1fr 1.3fr; gap: var(--gap); }
+.srow { display: grid; grid-template-columns: 10px 1fr auto; gap: 10px; align-items: center; padding: 9px 4px; border-bottom: 1px solid var(--line); font-size: 12.5px; }
+.srow i { width: 8px; height: 8px; border-radius: 2px; background: var(--ok); }
+.srow.w i { background: var(--accent); } .srow.f i { background: var(--bad); }
+.srow .m { font: 11px var(--mono); color: var(--dim); }
+.req { border: 1px solid var(--line); border-left: 3px solid var(--accent); border-radius: 12px; padding: 12px 14px; display: flex; flex-direction: column; gap: 8px; }
+.req .cmd { font: 14px var(--mono); }
+.req .cmd span { color: var(--dim); }
+.diff { font: 11.5px/1.55 var(--mono); }
+.diff .m { color: #ff8a80; } .diff .p { color: #9be39b; }
+.keys { display: flex; gap: 6px; flex-wrap: wrap; }
+kbd { font: 10px var(--mono); padding: 0 4px; border-radius: 3px; background: rgba(0,0,0,.25); }
+
+/* SETTINGS (detailed) */
+.snav { overflow: auto; padding: 4px 2px 4px 0; align-content: start; }
+.snav .grp { font: 600 10px var(--ui); letter-spacing: .09em; text-transform: uppercase; color: var(--mute); padding: 10px 12px 4px; }
+.snav button { display: flex; align-items: center; gap: 8px; }
+.snav .st { margin-left: auto; width: 7px; height: 7px; border-radius: 50%; background: var(--mute); }
+.snav .st.ok { background: var(--ok); } .snav .st.warn { background: var(--accent); }
+.sh { font: 600 15px var(--disp); margin: 2px 0 2px; }
+.shs { color: var(--dim); font-size: 12px; margin-bottom: 8px; }
+.card2 { border: 1px solid var(--line); border-radius: 12px; padding: 12px 14px; margin: 10px 0; background: rgba(255,255,255,.025); }
+.card2 .hd { display: flex; align-items: center; gap: 10px; }
+.card2 .hd b { font-size: 13px; }
+.lg { width: 28px; height: 28px; border-radius: 8px; display: grid; place-items: center; font: 700 11px var(--ui); color: #fff; flex: none; }
+.pill { font: 600 10.5px var(--ui); padding: 2px 8px; border-radius: 10px; margin-left: auto; white-space: nowrap; }
+.pill.ok { color: var(--ok); background: rgba(103,217,150,.12); }
+.pill.off { color: var(--dim); background: rgba(255,255,255,.06); }
+.pill.warn { color: var(--accent); background: var(--accent-soft); }
+.fld { display: grid; grid-template-columns: 120px 1fr auto; gap: 8px; align-items: center; margin-top: 10px; font-size: 12px; color: var(--dim); }
+.inp { height: 30px; border-radius: 8px; background: rgba(255,255,255,.05); border: 1px solid var(--line); color: var(--ink); padding: 0 10px; font: 12.5px var(--mono); width: 100%; }
+.inp:focus { border-color: var(--accent); outline: none; }
+.note { font-size: 11.5px; color: var(--dim); margin-top: 8px; display: flex; gap: 6px; align-items: center; }
+.note.ok { color: var(--ok); } .note.warn { color: var(--accent); }
+.acts { display: flex; gap: 6px; margin-top: 10px; flex-wrap: wrap; }
+.btn.sm { height: 26px; padding: 0 10px; font-size: 11.5px; }
+.btn.ghost { background: none; }
+.btn.danger { color: var(--bad); }
+.kbdrec { min-width: 132px; height: 28px; border-radius: 8px; border: 1px solid var(--line); background: rgba(255,255,255,.05); font: 12px var(--mono); padding: 0 10px; text-align: left; }
+.kbdrec.rec { border-color: var(--accent); color: var(--accent); }
+.flag { font-size: 11px; color: var(--accent); margin-left: 8px; }
+.seg { display: inline-flex; background: rgba(255,255,255,.05); border: 1px solid var(--line); border-radius: 9px; padding: 2px; }
+.seg button { height: 24px; padding: 0 10px; border-radius: 7px; font-size: 12px; color: var(--dim); }
+.seg button[aria-pressed="true"] { background: var(--tile-h); color: var(--ink); }
+.slider { width: 160px; }
+.modal { position: absolute; inset: 0; background: rgba(0,0,0,.55); display: none; place-items: center; z-index: 5; border-radius: 16px; }
+.modal.on { display: grid; }
+.mbox { width: min(560px, 92%); background: #141519; border: 1px solid var(--line); border-radius: 14px; padding: 16px; box-shadow: 0 20px 60px rgba(0,0,0,.6); }
+.mbox pre { margin: 10px 0; max-height: 150px; overflow: auto; background: #0c0d10; border: 1px solid var(--line); border-radius: 8px; padding: 10px; font: 11.5px/1.55 var(--mono); }
+.mbox pre .p { color: #9be39b; } .mbox pre .m { color: #ff8a80; } .mbox pre .n { color: var(--dim); }
+
+/* SETTINGS */
+#settings { grid-template-columns: 210px 1fr; gap: 14px; position: relative; }
+#settings > .tile { padding: 18px 22px; }
+#settings .spane { max-width: 720px; }
+#settings .opt { grid-template-columns: minmax(0, 1fr) auto; column-gap: 24px; }
+#settings .opt > div:first-child { display: flex; flex-direction: column; gap: 2px; }
+#settings .card2 .opt:last-child { border-bottom: 0; }
+#settings .fld { grid-template-columns: 110px minmax(0, 1fr) auto; }
+#settings .acts { justify-content: flex-start; }
+.snav { display: flex; flex-direction: column; gap: 2px; }
+.snav button { text-align: left; height: 30px; flex: none; padding: 0 12px; border-radius: 10px; color: var(--dim); font-weight: 500; }
+.snav button[aria-selected="true"] { background: var(--tile-h); color: var(--ink); }
+.spane { overflow: auto; padding-right: 4px; }
+.sg { display: none; } .sg.on { display: block; }
+.opt { display: grid; grid-template-columns: 1fr auto; gap: 12px; align-items: center; padding: 11px 2px; border-bottom: 1px solid var(--line); }
+.opt b { display: block; font-weight: 600; font-size: 13px; } .opt .sub { font-size: 11.5px; }
+.sw { width: 34px; height: 20px; border-radius: 10px; background: rgba(255,255,255,.16); position: relative; transition: background 150ms; }
+.sw::after { content: ""; position: absolute; top: 3px; left: 3px; width: 14px; height: 14px; border-radius: 50%; background: #fff; transition: transform 160ms var(--ease); }
+.sw[aria-checked="true"] { background: var(--accent); }
+.sw[aria-checked="true"]::after { transform: translateX(14px); }
+.swatches { display: flex; gap: 8px; }
+.swatches button { width: 22px; height: 22px; border-radius: 50%; border: 2px solid transparent; }
+.swatches button[aria-pressed="true"] { border-color: #fff; }
+select.sel { height: 28px; border-radius: 8px; background: #1a1b20; color: var(--ink); border: 1px solid var(--line); padding: 0 8px; font: inherit; }
+
+.hint { position: fixed; bottom: 16px; left: 50%; transform: translateX(-50%); font: 12px var(--ui); color: var(--dim); white-space: nowrap; }
+.hint kbd { font: 11px var(--mono); border: 1px solid var(--line); border-bottom-width: 2px; border-radius: 4px; padding: 0 5px; color: var(--ink2); background: none; }
+</style>
+</head>
+<body>
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <symbol id="i-pin" viewBox="0 0 24 24"><path d="M9 4h6l-1 6 4 3H6l4-3z"/><path d="M12 13v7"/></symbol>
+  <symbol id="i-gear" viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M12 2.5v2.2M12 19.3v2.2M4.6 4.6l1.6 1.6M17.8 17.8l1.6 1.6M2.5 12h2.2M19.3 12h2.2M4.6 19.4l1.6-1.6M17.8 6.2l1.6-1.6"/></symbol>
+  <symbol id="i-vol" viewBox="0 0 24 24"><path d="M4 9v6h4l5 4V5L8 9z"/><path d="M16 9a4 4 0 0 1 0 6"/></symbol>
+  <symbol id="i-sun" viewBox="0 0 24 24"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M2 12h2M20 12h2M5 5l1.5 1.5M17.5 17.5 19 19M5 19l1.5-1.5M17.5 6.5 19 5"/></symbol>
+  <symbol id="i-moon" viewBox="0 0 24 24"><path d="M20 14A8 8 0 1 1 10 4a7 7 0 0 0 10 10z"/></symbol>
+  <symbol id="i-cam" viewBox="0 0 24 24"><rect x="3" y="7" width="18" height="13" rx="2"/><circle cx="12" cy="13.5" r="3.5"/><path d="M8 7l2-3h4l2 3"/></symbol>
+  <symbol id="i-lock" viewBox="0 0 24 24"><rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/></symbol>
+  <symbol id="i-mic" viewBox="0 0 24 24"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5 11a7 7 0 0 0 14 0M12 18v3"/></symbol>
+  <symbol id="i-cloud" viewBox="0 0 24 24"><circle cx="9" cy="10" r="3"/><path d="M9 4v1M3 10h1M4.8 5.8l.7.7M13.2 5.8l-.7.7"/><path d="M8 19h9a4 4 0 0 0 0-8 5 5 0 0 0-8.6 2.4A3 3 0 0 0 8 19z"/></symbol>
+</svg>
+<div class="wall"></div>
+
+<div class="notch" id="notch" role="region" aria-label="Cue">
+  <div class="bar">
+    <canvas class="face" id="face" width="88" height="52" aria-hidden="true"></canvas>
+    <div class="live"><span class="art-s"></span><b class="ell">Midnight City</b><span class="ell">M83</span></div>
+    <span class="eq" id="eqs"></span>
+    <span class="mic">MIC</span>
+    <div class="adot" title="Coding agents: one needs you"><i class="wait"></i><i class="run"></i></div>
+    <span class="clock num" id="clock"></span>
+  </div>
+  <div class="toast"><span class="ap"></span><b>Aarav</b><span class="ell" style="color:var(--ink2)">are we still on for 7?</span><span class="sub" style="margin-left:auto;flex:none">WhatsApp · now</span></div>
+
+  <div class="frame">
+    <div class="nav" role="tablist" aria-label="Cue pages">
+      <button role="tab" data-p="home" aria-selected="true">Home</button>
+      <button role="tab" data-p="media">Media</button>
+      <button role="tab" data-p="files">Files</button>
+      <button role="tab" data-p="phone">Phone</button>
+      <button role="tab" data-p="agents">Agents</button>
+      <span class="sp"></span>
+      <button class="icb" id="pin" aria-pressed="false" title="Keep open" aria-label="Keep open"><svg class="i"><use href="#i-pin"/></svg></button>
+      <button class="icb" role="tab" data-p="settings" title="Settings" aria-label="Settings"><svg class="i"><use href="#i-gear"/></svg></button>
+    </div>
+
+    <div class="pages">
+      <!-- HOME -->
+      <div class="pg on" id="home" role="tabpanel" aria-label="Home">
+        <section class="tile media" data-w="media" aria-label="Now playing">
+          <div class="cover"><div class="viz" id="viz"></div></div>
+          <div>
+            <div class="trk ell">Midnight City</div>
+            <div class="sub ell">M83 · Spotify</div>
+            <div class="prog"><i id="prog"></i></div>
+            <div class="times num"><span id="pos">1:38</span><span>4:03</span></div>
+            <div class="ctrl">
+              <button aria-label="Previous"><svg viewBox="0 0 24 24"><path d="M6 6h2v12H6zM9.5 12 18 6v12z"/></svg></button>
+              <button class="pp" aria-label="Pause"><svg viewBox="0 0 24 24"><path d="M7 5h4v14H7zM13 5h4v14h-4z"/></svg></button>
+              <button aria-label="Next"><svg viewBox="0 0 24 24"><path d="M16 6h2v12h-2zM6 18l8.5-6L6 6z"/></svg></button>
+            </div>
+          </div>
+        </section>
+
+        <section class="tile cue" data-w="cue" aria-label="Cue voice assistant">
+          <div class="th">Cue <span class="r" id="vstate">Hold Space to talk</span></div>
+          <div class="tb">
+            <canvas class="bigface" id="bigface" width="168" height="100" aria-hidden="true"></canvas>
+            <div class="txt">
+              <div class="q ell" id="q">“Book a table for two at 7 and text Aarav.”</div>
+              <div class="a" id="a">On it. Hermes is finding a table near you — I'll call you back with options.</div>
+              <div class="row"><span class="vu" id="vu"></span><span class="herm ell" id="herm"><b>Hermes</b> · searching 3 sites…</span><button class="btn acc" id="talk"><svg class="i"><use href="#i-mic"/></svg>Talk</button></div>
+            </div>
+          </div>
+        </section>
+
+        <section class="tile today" data-w="today" aria-label="Today">
+          <div class="th">Today <span class="r num"><svg class="i"><use href="#i-cloud"/></svg>24°</span></div>
+          <div class="tb">
+            <div class="big num" id="bigclock">10:42</div>
+            <div class="sub" id="date">Tuesday, 13 October</div>
+            <div class="ev"><b class="ell">Design review</b><span class="sub">11:30 · in 48 min</span></div>
+          </div>
+        </section>
+
+        <section class="tile focus" data-w="focus" aria-label="Focus timer">
+          <div class="th">Focus <span class="r">25 min</span></div>
+          <div class="tb">
+            <svg class="ring" viewBox="0 0 80 80"><circle cx="40" cy="40" r="33" stroke="rgba(255,255,255,.09)" stroke-width="7" fill="none"/><circle id="ring" cx="40" cy="40" r="33" stroke="var(--accent)" stroke-width="7" fill="none" stroke-linecap="round" stroke-dasharray="207.3" stroke-dashoffset="80" transform="rotate(-90 40 40)"/></svg>
+            <div class="col"><span class="ft num" id="ft">15:24</span><span class="sub">Alerts held</span><button class="btn" id="fbtn" style="align-self:start">Pause</button></div>
+          </div>
+        </section>
+
+        <section class="tile agents" data-w="agents" aria-label="Coding agents">
+          <div class="th">Agents <span class="r">1 needs you</span></div>
+          <div class="tb">
+            <div class="a w"><i></i><span class="ell">Claude Code</span><span class="m">cue</span></div>
+            <div class="a"><i></i><span class="ell">Codex</span><span class="m">2 files</span></div>
+            <div class="appr"><span class="ell">npm test</span><button class="btn acc">Allow</button><button class="btn">Deny</button></div>
+          </div>
+        </section>
+
+        <section class="tile todo" data-w="todo" aria-label="To-do">
+          <div class="th">To-do <span class="r" id="tleft">2 left</span></div>
+          <div class="tb">
+            <label><input type="checkbox" checked><span class="ell">Send invoice</span></label>
+            <label><input type="checkbox"><span class="ell">Call mom</span></label>
+            <label><input type="checkbox"><span class="ell">Renew passport</span></label>
+          </div>
+        </section>
+
+        <section class="tile sys" data-w="sys" aria-label="System">
+          <div class="th">System <span class="r num"><span class="batt"></span>82%</span></div>
+          <div class="tb">
+            <div class="s"><svg class="i"><use href="#i-vol"/></svg><input class="range" type="range" value="60" aria-label="Volume"><span class="num">60</span></div>
+            <div class="s"><svg class="i"><use href="#i-sun"/></svg><input class="range" type="range" value="75" aria-label="Brightness"><span class="num">75</span></div>
+            <div class="qa">
+              <button aria-pressed="false" title="Do not disturb" aria-label="Do not disturb"><svg class="i"><use href="#i-moon"/></svg></button>
+              <button title="Screenshot" aria-label="Screenshot"><svg class="i"><use href="#i-cam"/></svg></button>
+              <button title="Lock" aria-label="Lock"><svg class="i"><use href="#i-lock"/></svg></button>
+              <button aria-pressed="false" title="Mute microphone" aria-label="Mute microphone"><svg class="i"><use href="#i-mic"/></svg></button>
+            </div>
+          </div>
+        </section>
+      </div>
+
+      <!-- MEDIA -->
+      <div class="pg" id="media" role="tabpanel" aria-label="Media">
+        <section class="tile player">
+          <div class="th">Now playing <span class="r">Spotify</span></div>
+          <div class="cover"><div class="viz" id="viz2"></div></div>
+          <div>
+            <div class="trk ell">Midnight City</div><div class="sub ell">M83 · Hurry Up, We're Dreaming</div>
+            <div class="prog"><i id="prog2"></i></div>
+            <div class="ctrl">
+              <button aria-label="Previous"><svg viewBox="0 0 24 24"><path d="M6 6h2v12H6zM9.5 12 18 6v12z"/></svg></button>
+              <button class="pp" aria-label="Pause"><svg viewBox="0 0 24 24"><path d="M7 5h4v14H7zM13 5h4v14h-4z"/></svg></button>
+              <button aria-label="Next"><svg viewBox="0 0 24 24"><path d="M16 6h2v12h-2zM6 18l8.5-6L6 6z"/></svg></button>
+            </div>
+          </div>
+        </section>
+        <div class="right">
+          <section class="tile" style="grid-template-rows:18px auto">
+            <div class="th">Playing on this PC <span class="r">click to switch</span></div>
+            <div class="tb">
+              <div class="sess on"><span class="ic" style="background:var(--cover)"></span><div><b class="ell" style="display:block">Midnight City</b><div class="sub">Spotify</div></div><span class="sub num">1:38</span></div>
+              <div class="sess"><span class="ic" style="background:linear-gradient(135deg,#ff3d3d,#7a0f0f)"></span><div><b class="ell" style="display:block">Lo-fi beats to code to</b><div class="sub">YouTube · Edge</div></div><span class="sub">paused</span></div>
+            </div>
+          </section>
+          <section class="tile">
+            <div class="th">Ask Cue</div>
+            <div class="tb"><div class="lyr">Say <b>“Hey Cue, play something calm”</b><br>or <b>“skip this song”</b> without touching anything.</div></div>
+          </section>
+        </div>
+      </div>
+
+      <!-- FILES -->
+      <div class="pg" id="files" role="tabpanel" aria-label="Files">
+        <section class="tile">
+          <div class="th">Shelf <span class="r">kept until you clear it</span></div>
+          <div class="tb">
+            <div class="drop" id="drop">Drop files here to keep them handy<br><span class="sub">Originals are never moved</span></div>
+            <div class="shelf" id="shelf">
+              <div class="file"><div class="doc">PDF</div><span class="ell">Invoice-Oct.pdf</span></div>
+              <div class="file"><div class="doc">PNG</div><span class="ell">Screenshot 10.31</span></div>
+              <div class="file"><div class="doc">ZIP</div><span class="ell">assets.zip</span></div>
+            </div>
+          </div>
+        </section>
+        <section class="tile clip">
+          <div class="th">Clipboard history <span class="r">Ctrl+Shift+V</span></div>
+          <div class="tb">
+            <input class="search" placeholder="Search clipboard" aria-label="Search clipboard" id="cs">
+            <div class="cliplist" id="cl"></div>
+          </div>
+        </section>
+      </div>
+
+      <!-- PHONE -->
+      <div class="pg" id="phone" role="tabpanel" aria-label="Phone">
+        <section class="tile call">
+          <div class="th">Calls <span class="r">via Phone Link</span></div>
+          <div class="tb" id="callbox">
+            <div class="av">M</div><b>Mom</b><span class="sub">Incoming call · iPhone</span>
+            <div class="callbtns">
+              <button class="cb no" aria-label="Decline" id="dec"><svg class="i" viewBox="0 0 24 24"><path d="M4 15c4-4 12-4 16 0l-2 3-4-1v-3a10 10 0 0 0-4 0v3l-4 1z"/></svg></button>
+              <button class="cb ok" aria-label="Answer" id="ans"><svg class="i" viewBox="0 0 24 24"><path d="M5 4h4l2 5-3 2a11 11 0 0 0 5 5l2-3 5 2v4a2 2 0 0 1-2 2A16 16 0 0 1 3 6a2 2 0 0 1 2-2z"/></svg></button>
+            </div>
+          </div>
+        </section>
+        <section class="tile">
+          <div class="th">Messages <span class="r">3 new</span></div>
+          <div class="tb">
+            <div class="msg"><span class="ap" style="background:#25d366"></span><div><b class="ell" style="display:block">Aarav</b><span class="sub ell" style="display:block">are we still on for 7?</span></div><span class="t">now</span></div>
+            <div class="msg"><span class="ap" style="background:#2aa3ef"></span><div><b class="ell" style="display:block">Bank</b><span class="sub ell" style="display:block">Your login code is hidden</span></div><span class="t">4m</span></div>
+            <div class="msg"><span class="ap" style="background:#34c759"></span><div><b class="ell" style="display:block">Priya</b><span class="sub ell" style="display:block">Sent the slides</span></div><span class="t">12m</span></div>
+          </div>
+        </section>
+        <section class="tile send">
+          <div class="th">Send to phone <span class="r">iCloud · ntfy</span></div>
+          <div class="tb">
+            <textarea id="note" aria-label="Note to send" placeholder="A note, a link, or drop a file">Flat 4B, 22 Lake Road</textarea>
+            <div class="row2"><span class="sub ell" id="sent" style="flex:1">Alerts reach your phone when you're away</span><button class="btn acc" id="sendbtn">Send</button></div>
+          </div>
+        </section>
+      </div>
+
+      <!-- AGENTS -->
+      <div class="pg" id="agents" role="tabpanel" aria-label="Agents">
+        <section class="tile">
+          <div class="th">Sessions <span class="r">3 running</span></div>
+          <div class="tb">
+            <div class="srow w"><i></i><span class="ell">Claude Code · cue</span><span class="m">needs you</span></div>
+            <div class="srow"><i></i><span class="ell">Codex · notch-site</span><span class="m">4m</span></div>
+            <div class="srow f"><i></i><span class="ell">Gemini · infra — plan failed</span><span class="m">open ↗</span></div>
+          </div>
+        </section>
+        <section class="tile">
+          <div class="th">Needs you <span class="r">Y allow · N deny</span></div>
+          <div class="tb">
+            <div class="req">
+              <div class="sub">Claude Code · D:\dev\cue · runs a command</div>
+              <div class="cmd"><span>$</span> npm test</div>
+              <div class="diff"><div class="m">- let current = &amp;state.phase;</div><div class="p">+ let current = state.phase.clone();</div></div>
+              <div class="keys"><button class="btn acc">Allow once <kbd>Y</kbd></button><button class="btn">Deny <kbd>N</kbd></button><button class="btn">Always this session <kbd>A</kbd></button></div>
+            </div>
+          </div>
+        </section>
+      </div>
+
+      <!-- SETTINGS -->
+      <div class="pg" id="settings" role="tabpanel" aria-label="Settings">
+        <div class="snav" role="tablist" aria-label="Settings sections">
+          <div class="grp">Cue</div>
+          <button role="tab" data-s="gen" aria-selected="true">General</button>
+          <button role="tab" data-s="look">Appearance</button>
+          <button role="tab" data-s="pet">Tock</button>
+          <button role="tab" data-s="home">Home widgets</button>
+          <button role="tab" data-s="keys">Shortcuts</button>
+          <div class="grp">AI</div>
+          <button role="tab" data-s="voice">Voice &amp; Hermes<span class="st ok"></span></button>
+          <button role="tab" data-s="prov">AI providers<span class="st ok"></span></button>
+          <button role="tab" data-s="local">Local models<span class="st"></span></button>
+          <button role="tab" data-s="agents">Coding agents<span class="st warn"></span></button>
+          <div class="grp">Connections</div>
+          <button role="tab" data-s="int">Integrations</button>
+          <button role="tab" data-s="phone">Phone<span class="st ok"></span></button>
+          <button role="tab" data-s="sys">System</button>
+          <div class="grp">More</div>
+          <button role="tab" data-s="priv">Privacy</button>
+          <button role="tab" data-s="about">About</button>
+        </div>
+        <section class="tile" style="grid-template-rows:1fr">
+          <div class="spane">
+
+            <div class="sg on" data-s="gen">
+              <div class="sh">General</div><div class="shs">How Cue starts, where it lives and how it behaves.</div>
+              <div class="opt"><div><b>Launch at startup</b><span class="sub">Cue starts with Windows, quietly</span></div><button class="sw" role="switch" aria-checked="true" aria-label="Launch at startup"></button></div>
+              <div class="opt"><div><b>Lives on</b><span class="sub">Which display the notch sits on</span></div><div class="seg"><button aria-pressed="true">Main display</button><button aria-pressed="false">Under the cursor</button></div></div>
+              <div class="opt"><div><b>Open on hover</b><span class="sub">Otherwise click the notch</span></div><button class="sw" role="switch" aria-checked="true" aria-label="Open on hover"></button></div>
+              <div class="opt"><div><b>Close after</b><span class="sub">When the pointer leaves an open panel</span></div><div style="display:flex;align-items:center;gap:8px"><input class="range slider" type="range" min="1" max="60" value="15" aria-label="Auto-close seconds"><span class="num sub">15 s</span></div></div>
+              <div class="opt"><div><b>Always show the notch</b><span class="sub">Off: it tucks into the top edge after a minute</span></div><button class="sw" role="switch" aria-checked="false" aria-label="Always show"></button></div>
+              <div class="opt"><div><b>Hide in full-screen apps</b><span class="sub">Games, videos and presentations</span></div><button class="sw" role="switch" aria-checked="true" aria-label="Hide in full screen"></button></div>
+              <div class="opt"><div><b>Sounds</b><span class="sub">Small sounds for alerts and finished tasks</span></div><div style="display:flex;align-items:center;gap:8px"><button class="sw" role="switch" aria-checked="true" aria-label="Sounds"></button><input class="range slider" type="range" value="20" aria-label="Sound volume" style="width:100px"></div></div>
+              <div class="opt"><div><b>Language</b></div><select class="sel"><option>System (English)</option><option>Français</option><option>Español</option><option>हिन्दी</option><option>简体中文</option></select></div>
+            </div>
+
+            <div class="sg" data-s="look">
+              <div class="sh">Appearance</div><div class="shs">Colours and motion.</div>
+              <div class="opt"><div><b>Accent colour</b><span class="sub">Pet and highlights</span></div><div class="swatches" id="sw"></div></div>
+              <div class="opt"><div><b>Tint from album art</b><span class="sub">The panel takes the cover's colour</span></div><button class="sw" role="switch" aria-checked="true" id="tintsw" aria-label="Tint from album art"></button></div>
+              <div class="opt"><div><b>Reduce motion</b><span class="sub">No springs, blinks or bars</span></div><button class="sw" role="switch" aria-checked="false" id="rmsw" aria-label="Reduce motion"></button></div>
+              <div class="opt"><div><b>Panel size</b></div><div class="seg"><button aria-pressed="false">Compact</button><button aria-pressed="true">Standard</button><button aria-pressed="false">Large</button></div></div>
+              <div class="opt"><div><b>Glass</b><span class="sub">Blur behind the open panel</span></div><button class="sw" role="switch" aria-checked="true" aria-label="Glass"></button></div>
+            </div>
+
+            <div class="sg" data-s="pet">
+              <div class="sh">Tock</div><div class="shs">Tock lives in the notch and reacts to what's going on.</div>
+              <div class="opt"><div><b>Show Tock</b><span class="sub">Hide it for calls and screen-sharing</span></div><button class="sw" role="switch" aria-checked="true" id="facesw" aria-label="Show pet"></button></div>
+              <div class="opt"><div><b>Dances to music</b></div><button class="sw" role="switch" aria-checked="true" aria-label="Dances to music"></button></div>
+              <div class="opt"><div><b>Wears headphones in Focus</b><span class="sub">and goes quiet</span></div><button class="sw" role="switch" aria-checked="true" aria-label="Focus"></button></div>
+              <div class="opt"><div><b>Hides during calls and screen-sharing</b></div><button class="sw" role="switch" aria-checked="true" aria-label="Hide in calls"></button></div>
+              <div class="opt"><div><b>Sleeps at night</b><span class="sub">From 11 pm, wakes when you move the mouse</span></div><button class="sw" role="switch" aria-checked="true" aria-label="Sleeps at night"></button></div>
+              <div class="opt"><div><b>Peeks at new messages</b></div><button class="sw" role="switch" aria-checked="true" aria-label="Messages"></button></div>
+              <div class="opt"><div><b>Follows your cursor with its eyes</b></div><button class="sw" role="switch" aria-checked="true" aria-label="Eyes follow cursor"></button></div>
+            </div>
+
+            <div class="sg" data-s="home" id="wsets"><div class="sh">Home widgets</div><div class="shs">Switch tiles on or off. Drag to reorder (in the app).</div></div>
+
+            <div class="sg" data-s="keys">
+              <div class="sh">Shortcuts</div><div class="shs">Click a shortcut, then press the new keys. Combinations that type a character on your keyboard layout are refused.</div>
+              <div class="lbl sub" style="margin-top:6px">From anywhere</div>
+              <div class="opt"><div><b>Open Cue</b></div><div><button class="kbdrec" data-rec>Ctrl+Alt+Space</button><span class="flag">In use by another app</span></div></div>
+              <div class="opt"><div><b>Talk to Cue (hold)</b></div><div><button class="kbdrec" data-rec>Ctrl+Space</button></div></div>
+              <div class="opt"><div><b>Allow waiting request</b></div><div><button class="kbdrec" data-rec>Ctrl+Alt+Y</button></div></div>
+              <div class="opt"><div><b>Deny waiting request</b></div><div><button class="kbdrec" data-rec>Ctrl+Alt+N</button></div></div>
+              <div class="opt"><div><b>Go to alert</b></div><div><button class="kbdrec" data-rec>Ctrl+Alt+A</button></div></div>
+              <div class="opt"><div><b>Open terminal of session</b></div><div><button class="kbdrec" data-rec>Ctrl+Alt+T</button></div></div>
+              <div class="opt"><div><b>Play / pause</b></div><div><button class="kbdrec" data-rec>None</button></div></div>
+              <div class="opt"><div><b>Mute Cue</b></div><div><button class="kbdrec" data-rec>Ctrl+Alt+S</button></div></div>
+              <div class="lbl sub" style="margin-top:12px">In the open panel</div>
+              <div class="opt"><div><b>Next / previous page</b></div><div><button class="kbdrec" data-rec>Ctrl+→ / Ctrl+←</button></div></div>
+              <div class="opt"><div><b>Settings</b></div><div><button class="kbdrec" data-rec>Ctrl+,</button></div></div>
+              <div class="opt"><div><b>Keep open</b></div><div><button class="kbdrec" data-rec>Ctrl+P</button></div></div>
+              <div class="acts"><button class="btn sm">Reset to defaults</button></div>
+            </div>
+
+            <div class="sg" data-s="voice">
+              <div class="sh">Voice &amp; Hermes</div><div class="shs">Cue talks through your ElevenLabs agent. Bigger jobs go to Hermes on this PC; Cue calls you back with the answer.</div>
+              <div class="card2"><div class="hd"><span class="lg" style="background:#111;border:1px solid #333">11</span><div><b>ElevenLabs</b><div class="sub">Conversational agent</div></div><span class="pill ok">Connected</span></div>
+                
+  <div class="fld"><span>API key</span><input class="inp" type="password" id="k-eleven" placeholder="xi-..." value="••••••••••••••••" aria-label="API key"><span class="acts" style="margin:0"><button class="btn sm" data-save="k-eleven">Save key</button><button class="btn sm ghost danger" data-rm="k-eleven">Remove</button></span></div>
+  <div class="note ok" id="k-eleven-n">Saved in Windows Credential Manager. It never touches disk or the page.</div>
+                <div class="fld"><span>Agent</span><input class="inp" value="Maki (Cue) · agent_1201m4t6…" aria-label="Agent"><button class="btn sm">Open in ElevenLabs ↗</button></div>
+                <div class="fld"><span>Voice</span><select class="sel"><option>Aria · warm</option><option>Roger · calm</option><option>Sarah · bright</option><option>George · deep</option></select><button class="btn sm" data-test="voice">Play sample</button></div>
+                <div class="note">Credits this month: 2,140 of 10,000 · resets in 18 days</div></div>
+              <div class="card2"><div class="hd"><span class="lg" style="background:#5b3df5">H</span><div><b>Hermes agent</b><div class="sub mono" style="font-family:var(--mono);font-size:11px">%LOCALAPPDATA%\hermes\hermes-agent\.venv\Scripts\hermes.exe</div></div><span class="pill ok">Found</span></div>
+                <div class="opt"><div><b>Let Cue hand tasks to Hermes</b></div><button class="sw" role="switch" aria-checked="true" aria-label="Hermes"></button></div>
+                <div class="opt"><div><b>Tools Hermes may use</b></div><div class="seg"><button aria-pressed="true">Terminal</button><button aria-pressed="true">Files</button><button aria-pressed="true">Web</button><button aria-pressed="false">Computer use</button></div></div>
+                <div class="opt"><div><b>Time limit</b><span class="sub">Hermes is stopped after this</span></div><select class="sel"><option>2 min</option><option selected>5 min</option><option>10 min</option></select></div>
+                <div class="opt"><div><b>Show live steps in the notch</b><span class="sub">Commands it runs are logged; their output is not</span></div><button class="sw" role="switch" aria-checked="true" aria-label="Live steps"></button></div></div>
+              <div class="opt"><div><b>Wake word</b><span class="sub">Heard on this PC with Windows speech; nothing is sent until it hears it</span></div><div style="display:flex;gap:8px;align-items:center"><input class="inp" style="width:110px" value="Hey Cue" aria-label="Wake word"><button class="sw" role="switch" aria-checked="false" aria-label="Wake word"></button></div></div>
+              <div class="opt"><div><b>Speech language</b></div><select class="sel"><option>English (India)</option><option>English (US)</option><option>Hindi</option><option>Tamil</option></select></div>
+              <div class="opt"><div><b>Speak answers</b><span class="sub">Off: answers show as text only</span></div><button class="sw" role="switch" aria-checked="true" aria-label="Speak answers"></button></div>
+              <div class="acts"><button class="btn sm">Open Windows speech settings ↗</button></div>
+            </div>
+
+            <div class="sg" data-s="prov">
+              <div class="sh">AI providers</div><div class="shs">Used for typed chat and quick answers. Switching provider mid-chat carries the conversation over as plain text.</div>
+              <div class="card2"><div class="hd"><span class="lg" style="background:#d97757">C</span><div><b>Claude (your plan)</b><div class="sub">Uses Claude Code on this PC. No API key.</div></div><span class="pill ok">Logged in · Max</span></div>
+                <div class="opt"><div><b>Model</b></div><select class="sel"><option>Sonnet</option><option>Opus</option><option>Haiku</option></select></div>
+                <div class="opt"><div><b>Show plan usage in the notch</b><span class="sub">5-hour and weekly limits</span></div><button class="sw" role="switch" aria-checked="true" aria-label="Plan usage"></button></div></div>
+              
+  <div class="card2"><div class="hd"><span class="lg" style="background:#e07950">A</span><div><b>Anthropic API</b><div class="sub">Messages API with web search</div></div><span class="pill ok">Connected</span></div>
+  
+  <div class="fld"><span>API key</span><input class="inp" type="password" id="k-anthropic" placeholder="Paste key" value="••••••••••••••••" aria-label="API key"><span class="acts" style="margin:0"><button class="btn sm" data-save="k-anthropic">Save key</button><button class="btn sm ghost danger" data-rm="k-anthropic">Remove</button></span></div>
+  <div class="note ok" id="k-anthropic-n">Saved in Windows Credential Manager. It never touches disk or the page.</div>
+  <div class="fld"><span>Model</span><select class="sel"><option>Check models after saving a key</option></select><button class="btn sm" data-test="k-anthropic">Test</button></div></div>
+              
+  <div class="card2"><div class="hd"><span class="lg" style="background:#10a37f">O</span><div><b>OpenAI</b><div class="sub">Chat only, no tools</div></div><span class="pill off">Key not configured</span></div>
+  
+  <div class="fld"><span>API key</span><input class="inp" type="password" id="k-openai" placeholder="Paste key"  aria-label="API key"><span class="acts" style="margin:0"><button class="btn sm" data-save="k-openai">Save key</button></span></div>
+  <div class="note " id="k-openai-n">No key yet. Keys are stored in Windows Credential Manager.</div>
+  <div class="fld"><span>Model</span><select class="sel"><option>Check models after saving a key</option></select><button class="btn sm" data-test="k-openai">Test</button></div></div>
+              
+  <div class="card2"><div class="hd"><span class="lg" style="background:#4285f4">G</span><div><b>Google AI</b><div class="sub">Gemini, chat only</div></div><span class="pill off">Key not configured</span></div>
+  
+  <div class="fld"><span>API key</span><input class="inp" type="password" id="k-google" placeholder="Paste key"  aria-label="API key"><span class="acts" style="margin:0"><button class="btn sm" data-save="k-google">Save key</button></span></div>
+  <div class="note " id="k-google-n">No key yet. Keys are stored in Windows Credential Manager.</div>
+  <div class="fld"><span>Model</span><select class="sel"><option>Check models after saving a key</option></select><button class="btn sm" data-test="k-google">Test</button></div></div>
+              
+  <div class="card2"><div class="hd"><span class="lg" style="background:#6467f2">R</span><div><b>OpenRouter</b><div class="sub">Many models, free ones listed first</div></div><span class="pill off">Key not configured</span></div>
+  
+  <div class="fld"><span>API key</span><input class="inp" type="password" id="k-openrouter" placeholder="Paste key"  aria-label="API key"><span class="acts" style="margin:0"><button class="btn sm" data-save="k-openrouter">Save key</button></span></div>
+  <div class="note " id="k-openrouter-n">No key yet. Keys are stored in Windows Credential Manager.</div>
+  <div class="fld"><span>Model</span><select class="sel"><option>openrouter/auto</option></select><button class="btn sm" data-test="k-openrouter">Test</button></div></div>
+              <div class="opt"><div><b>Default for chat</b></div><select class="sel"><option>Claude (your plan)</option><option>Anthropic API</option><option>Ollama</option></select></div>
+            </div>
+
+            <div class="sg" data-s="local">
+              <div class="sh">Local models</div><div class="shs">A model server on this PC keeps everything on your machine.</div>
+              <div class="card2"><div class="hd"><span class="lg" style="background:#222;border:1px solid #444">OL</span><div><b>Ollama</b><div class="sub">Leave empty for the usual address</div></div><span class="pill off">Not connected</span></div>
+                <div class="fld"><span>Address</span><input class="inp" placeholder="http://127.0.0.1:11434" aria-label="Ollama address"><button class="btn sm acc" data-connect>Connect</button></div>
+                <div class="note ok">Nothing leaves your PC: the server runs on this computer.</div></div>
+              <div class="card2"><div class="hd"><span class="lg" style="background:#3a5">LM</span><div><b>LM Studio</b><div class="sub">OpenAI-compatible server</div></div><span class="pill off">Not connected</span></div>
+                <div class="fld"><span>Address</span><input class="inp" placeholder="http://127.0.0.1:1234" aria-label="LM Studio address"><button class="btn sm acc" data-connect>Connect</button></div></div>
+              <div class="card2"><div class="hd"><span class="lg" style="background:#555">+</span><div><b>Custom server</b><div class="sub">vLLM, llama.cpp, any OpenAI-compatible API</div></div><span class="pill off">Not connected</span></div>
+                <div class="fld"><span>Address</span><input class="inp" id="cust" placeholder="https://llm.example.com" aria-label="Custom server address"><button class="btn sm acc" data-connect>Connect</button></div>
+                <div class="note" id="cust-n">Type an address to see where your questions would go.</div>
+                <div class="fld"><span>API key (optional)</span><input class="inp" type="password" aria-label="Custom key"><span></span></div></div>
+            </div>
+
+            <div class="sg" data-s="agents">
+              <div class="sh">Coding agents</div><div class="shs">Cue shows each agent's sessions and lets you Allow or Deny from the notch. Installing shows the exact change and takes a dated backup first; your own hooks are never touched.</div>
+              <div class="card2"><div class="hd"><b>Relay</b><span class="pill ok">cue-hook.exe installed</span></div><div class="note">If Cue is closed or slow, the agent asks in its own terminal as usual: nothing is ever approved on its own.</div></div>
+              
+  <div class="card2"><div class="hd"><span class="lg" style="background:#d97757">CC</span><div><b>Claude Code</b><div class="sub mono" style="font-family:var(--mono);font-size:11px">%USERPROFILE%\.claude\settings.json</div></div>
+  <span class="pill ok">Hooks installed</span></div>
+  <div class="note">Sessions, and Allow / Deny from the notch</div>
+  <div class="acts"><button class="btn sm" data-hooks="Claude Code">Reinstall…</button><button class="btn sm ghost danger" data-unhook="Claude Code">Uninstall…</button></div></div>
+              
+  <div class="card2"><div class="hd"><span class="lg" style="background:#111;border:1px solid #444">CX</span><div><b>Codex</b><div class="sub mono" style="font-family:var(--mono);font-size:11px">%USERPROFILE%\.codex\hooks.json</div></div>
+  <span class="pill off">Not installed</span></div>
+  <div class="note">Allow / Deny from the notch. Trust the hooks once with /hooks in Codex.</div>
+  <div class="acts"><button class="btn sm acc" data-hooks="Codex">Install…</button></div></div>
+              
+  <div class="card2"><div class="hd"><span class="lg" style="background:#4285f4">GM</span><div><b>Gemini CLI</b><div class="sub mono" style="font-family:var(--mono);font-size:11px">%USERPROFILE%\.gemini\settings.json</div></div>
+  <span class="pill off">Not installed</span></div>
+  <div class="note">Sessions; approvals stay in Gemini</div>
+  <div class="acts"><button class="btn sm acc" data-hooks="Gemini CLI">Install…</button></div></div>
+              
+  <div class="card2"><div class="hd"><span class="lg" style="background:#6e40c9">GH</span><div><b>GitHub Copilot CLI</b><div class="sub mono" style="font-family:var(--mono);font-size:11px">%USERPROFILE%\.copilot\hooks\cue.json</div></div>
+  <span class="pill off">Not installed</span></div>
+  <div class="note">Allow / Deny from the notch</div>
+  <div class="acts"><button class="btn sm acc" data-hooks="GitHub Copilot CLI">Install…</button></div></div>
+              
+  <div class="card2"><div class="hd"><span class="lg" style="background:#222;border:1px solid #444">CU</span><div><b>Cursor Agent</b><div class="sub mono" style="font-family:var(--mono);font-size:11px">%USERPROFILE%\.cursor\hooks.json</div></div>
+  <span class="pill warn">Needs reinstall</span></div>
+  <div class="note">Sessions; approvals stay in Cursor</div>
+  <div class="acts"><button class="btn sm acc" data-hooks="Cursor Agent">Install…</button></div></div>
+              
+  <div class="card2"><div class="hd"><span class="lg" style="background:#333">OC</span><div><b>OpenCode</b><div class="sub mono" style="font-family:var(--mono);font-size:11px">%USERPROFILE%\.config\opencode\plugins\cue.js</div></div>
+  <span class="pill off">Not installed</span></div>
+  <div class="note">Plugin; approvals stay in OpenCode</div>
+  <div class="acts"><button class="btn sm acc" data-hooks="OpenCode">Install…</button></div></div>
+              
+  <div class="card2"><div class="hd"><span class="lg" style="background:#5b3df5">H</span><div><b>Hermes</b><div class="sub mono" style="font-family:var(--mono);font-size:11px">%USERPROFILE%\.hermes\plugins\cue\</div></div>
+  <span class="pill off">Not installed</span></div>
+  <div class="note">Plugin; turn it on once with: hermes plugins enable cue</div>
+  <div class="acts"><button class="btn sm acc" data-hooks="Hermes">Install…</button></div></div>
+              <div class="sh" style="margin-top:14px;font-size:13.5px">Plan usage</div>
+              <div class="opt"><div><b>Claude plan in the notch</b><span class="sub">Read from Claude Code's status line; your own status line keeps working</span></div><button class="sw" role="switch" aria-checked="true" aria-label="Claude plan"></button></div>
+              <div class="opt"><div><b>Codex plan in the notch</b><span class="sub">Asks codex app-server at most once a minute</span></div><button class="sw" role="switch" aria-checked="false" aria-label="Codex plan"></button></div>
+              <div class="opt"><div><b>Alert when a limit resets</b><span class="sub">On this PC and on your phone</span></div><button class="sw" role="switch" aria-checked="true" aria-label="Reset alert"></button></div>
+            </div>
+
+            <div class="sg" data-s="int">
+              <div class="sh">Integrations</div><div class="shs">Only the ones you switch on are ever contacted.</div>
+              <div class="card2"><div class="hd"><span class="lg" style="background:#1db954">♪</span><div><b>Music</b><div class="sub">Spotify, Apple Music, browsers, any app in Windows' media controls</div></div><span class="pill ok">On</span></div></div>
+              <div class="card2"><div class="hd"><span class="lg" style="background:#0078d4">31</span><div><b>Calendar</b><div class="sub">Next meeting on Home</div></div><span class="pill off">Not connected</span></div>
+                <div class="acts"><button class="btn sm acc">Connect Outlook</button><button class="btn sm">Connect Google</button></div></div>
+              <div class="card2"><div class="hd"><span class="lg" style="background:#333">☁</span><div><b>Weather</b><div class="sub">Approximate location, no account</div></div><span class="pill ok">On</span></div>
+                <div class="fld"><span>City</span><input class="inp" value="Chennai" aria-label="City"><span></span></div></div>
+              <div class="card2"><div class="hd"><span class="lg" style="background:#24292f">GH</span><div><b>GitHub</b><div class="sub">Your PRs, reviews and CI</div></div><span class="pill off">Token not set</span></div>
+                
+  <div class="fld"><span>Token</span><input class="inp" type="password" id="k-gh" placeholder="ghp_… (repo scope)"  aria-label="Token"><span class="acts" style="margin:0"><button class="btn sm" data-save="k-gh">Save key</button></span></div>
+  <div class="note " id="k-gh-n">No key yet. Keys are stored in Windows Credential Manager.</div></div>
+              <div class="card2"><div class="hd"><span class="lg" style="background:#ff5a4f">n8</span><div><b>n8n, Cal.com, Linear…</b><div class="sub">More services from the same catalog as Coucou</div></div><span class="pill off">Coming soon</span></div></div>
+            </div>
+
+            <div class="sg" data-s="phone">
+              <div class="sh">Phone</div><div class="shs">Calls and messages from your phone, and alerts sent to it.</div>
+              <div class="card2"><div class="hd"><span class="lg" style="background:#0067c0">PL</span><div><b>Phone Link</b><div class="sub">Calls and notifications from your iPhone or Android</div></div><span class="pill ok">Paired</span></div>
+                <div class="opt"><div><b>Show calls in the notch</b><span class="sub">Answer and decline from Cue</span></div><button class="sw" role="switch" aria-checked="true" aria-label="Calls"></button></div>
+                <div class="opt"><div><b>Show messages in the notch</b></div><button class="sw" role="switch" aria-checked="true" aria-label="Messages"></button></div>
+                <div class="opt"><div><b>Hide message text</b><span class="sub">Show only who it's from</span></div><button class="sw" role="switch" aria-checked="false" aria-label="Hide text"></button></div></div>
+              <div class="card2"><div class="hd"><span class="lg" style="background:#3d9bff">☁</span><div><b>iCloud Drive bridge</b><div class="sub">Links and files to and from your iPhone</div></div><span class="pill ok">On</span></div>
+                <div class="opt"><div><b>Links from iPhone open here</b></div><button class="sw" role="switch" aria-checked="true" aria-label="Links from iPhone"></button></div>
+                <div class="opt"><div><b>Copies go to iPhone</b></div><button class="sw" role="switch" aria-checked="false" aria-label="Copies to iPhone"></button></div></div>
+              <div class="card2"><div class="hd"><span class="lg" style="background:#317f6f">nt</span><div><b>Phone alerts (ntfy)</b><div class="sub">Agent done, limit reset, reminders</div></div><span class="pill ok">On</span></div>
+                <div class="fld"><span>Topic</span><input class="inp" value="cue-mithun-7f3a" aria-label="ntfy topic"><button class="btn sm" id="ntfytest">Send a test</button></div>
+                <div class="note" id="ntfy-n">Only when you're away from the PC.</div>
+                <div class="opt"><div><b>Only when I'm away</b></div><button class="sw" role="switch" aria-checked="true" aria-label="Only when away"></button></div></div>
+            </div>
+
+            <div class="sg" data-s="sys">
+              <div class="sh">System</div><div class="shs">Small live moments in the notch.</div>
+              <div class="opt"><div><b>Volume</b><span class="sub">Show the level when you change it</span></div><button class="sw" role="switch" aria-checked="true" aria-label="Volume HUD"></button></div>
+              <div class="opt"><div><b>Brightness</b></div><button class="sw" role="switch" aria-checked="true" aria-label="Brightness HUD"></button></div>
+              <div class="opt"><div><b>Battery</b><span class="sub">Charger plugged in, low battery</span></div><button class="sw" role="switch" aria-checked="true" aria-label="Battery"></button></div>
+              <div class="opt"><div><b>Microphone and camera in use</b><span class="sub">A dot while any app uses them</span></div><button class="sw" role="switch" aria-checked="true" aria-label="Mic and camera"></button></div>
+              <div class="opt"><div><b>Clipboard history</b><span class="sub">Kept 24 h; passwords and one-time codes skipped</span></div><button class="sw" role="switch" aria-checked="true" aria-label="Clipboard history"></button></div>
+              <div class="opt"><div><b>Notifications from other apps</b><span class="sub">Shown in the notch instead of Windows' pop-ups</span></div><button class="sw" role="switch" aria-checked="false" aria-label="Notifications"></button></div>
+            </div>
+
+            <div class="sg" data-s="priv">
+              <div class="sh">Privacy</div><div class="shs">Cue sends nothing anywhere unless you set it up. No telemetry.</div>
+              <div class="opt"><div><b>Let Cue see the active window</b><span class="sub">Only when you ask about it</span></div><button class="sw" role="switch" aria-checked="false" aria-label="Active window"></button></div>
+              <div class="opt"><div><b>Keep voice captions</b><span class="sub">Off: forgotten when the panel closes</span></div><button class="sw" role="switch" aria-checked="false" aria-label="Captions"></button></div>
+              <div class="opt"><div><b>Weekly recap</b><span class="sub">Counts of your coding sessions; never prompts or file contents</span></div><button class="sw" role="switch" aria-checked="true" aria-label="Weekly recap"></button></div>
+              <div class="opt"><div><b>Clear history</b><span class="sub">Clipboard, captions, shelf, recap</span></div><button class="btn sm danger" id="clr">Clear</button></div>
+              <div class="opt"><div><b>Open the log folder</b><span class="sub">%LOCALAPPDATA%\Cue</span></div><button class="btn sm">Open ↗</button></div>
+            </div>
+
+            <div class="sg" data-s="about">
+              <div class="sh">Cue 0.4.0</div><div class="shs">A companion that lives in your notch.</div>
+              <div class="opt"><div><b>Check for updates</b></div><button class="btn sm">Check</button></div>
+              <div class="opt"><div><b>Licences</b><span class="sub">Includes MIT-licensed code from Coucou by Louis Raillé</span></div><button class="btn sm">View</button></div>
+              <div class="opt"><div><b>Export diagnostics</b><span class="sub">Keys and personal text are removed</span></div><button class="btn sm">Export…</button></div>
+            </div>
+
+          </div>
+        </section>
+        <div class="modal" id="modal" role="dialog" aria-modal="true" aria-label="Install hooks">
+          <div class="mbox">
+            <b id="mt">Install Claude Code hooks</b>
+            <div class="sub" style="margin-top:4px">This change will be written to <span style="font-family:var(--mono)" id="mf">%USERPROFILE%\.claude\settings.json</span>. A backup is taken first:</div>
+            <div class="sub" style="font-family:var(--mono);margin-top:2px">settings.json.backup-2026-10-13-2041</div>
+            <pre><span class="n">  "hooks": {</span>
+<span class="p">+   "PreToolUse": [{ "hooks": [{ "type": "command",</span>
+<span class="p">+     "command": "\"…/Cue/bin/cue-hook.exe\"" }] }],</span>
+<span class="p">+   "SessionStart": [ … ],</span>
+<span class="n">    "Stop": [ your own hook stays ]</span>
+<span class="n">  }</span></pre>
+            <div class="acts" style="justify-content:flex-end"><button class="btn sm" id="mcancel">Cancel</button><button class="btn sm acc" id="mok">Back up and write</button></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="hint">Hover the notch · <kbd>Space</kbd> talk · <kbd>M</kbd> message · <kbd>Esc</kbd> close</div>
+
+<script>
+const $ = (s, r = document) => r.querySelector(s), $$ = (s, r = document) => [...r.querySelectorAll(s)];
+const root = document.documentElement;
+root.style.setProperty("--cover", "conic-gradient(from 200deg at 60% 40%, #ff8a1f, #b8430f, #2a1a3a, #5a2a8a, #ff8a1f)");
+const rm = () => root.hasAttribute("data-rm");
+
+/* Tock: the notch's own capsule shape as a little creature */
+const F = { mood: "music", level: 0, look: 0 };
+function drawFace(cv, t) {
+  const x = cv.getContext("2d"), W = cv.width, H = cv.height, m = F.mood, still = rm();
+  const col = getComputedStyle(root).getPropertyValue("--accent").trim(), ink = "#141414";
+  if (still) t = 0;
+  x.clearRect(0, 0, W, H);
+  const bw = W * .62, bh = bw * .62, cx = W / 2, base = H * .62;
+  const hop = m === "happy" ? -Math.abs(Math.sin(t * 7)) * H * .1 : m === "music" ? -Math.abs(Math.sin(t * 4)) * H * .06 : Math.sin(t * 1.6) * H * .01;
+  const sy = m === "talk" ? 1 - .1 * F.level : 1 + .02 * Math.sin(t * 2), rot = m === "music" ? Math.sin(t * 4) * .1 : 0;
+  x.save(); x.translate(cx, base + hop); x.rotate(rot); x.scale(2 - sy, sy);
+  const r = bh / 2;
+  x.fillStyle = col; x.beginPath(); x.roundRect(-bw / 2, -bh / 2, bw, bh, r); x.fill();
+  if (m === "music") { // headphones
+    x.strokeStyle = "#e8e6e1"; x.lineWidth = bh * .1; x.lineCap = "round";
+    x.beginPath(); x.moveTo(-bw / 2 - bh * .05, -bh * .05); x.quadraticCurveTo(0, -bh * 1.05, bw / 2 + bh * .05, -bh * .05); x.stroke();
+    x.fillStyle = "#ff7ab6"; for (const sx of [-1, 1]) { x.beginPath(); x.roundRect(sx * (bw / 2 + bh * .05) - bh * .13, -bh * .2, bh * .26, bh * .42, bh * .1); x.fill(); }
+  }
+  x.fillStyle = ink; x.strokeStyle = ink; x.lineWidth = bh * .12; x.lineCap = "round"; x.lineJoin = "round";
+  const gap = bw * .17, ey = -bh * .06, lx = F.look * bw * .05, blink = (t % 3.7) < .12;
+  for (const sx of [-1, 1]) {
+    const ex = sx * gap + lx;
+    if (m === "happy") { x.beginPath(); x.moveTo(ex - bh * .13, ey + bh * .08); x.lineTo(ex, ey - bh * .08); x.lineTo(ex + bh * .13, ey + bh * .08); x.stroke(); }
+    else { const big = m === "listen" ? 1.3 : 1, hh = (blink ? .08 : .42) * bh * big, ww = bh * .17; x.beginPath(); x.roundRect(ex - ww / 2 + (m === "think" ? Math.sin(t * 3) * bw * .05 : 0), ey - hh / 2, ww, hh, ww / 2); x.fill(); }
+  }
+  x.restore();
+}
+
+/* open / close: forgiving hover; pin keeps it open */
+const notch = $("#notch"); let closeT, pinned = false;
+const open = () => { clearTimeout(closeT); notch.classList.add("open"); };
+notch.addEventListener("mouseenter", () => { if ($("#hov").getAttribute("aria-checked") === "true") open(); });
+notch.addEventListener("click", open);
+notch.addEventListener("mouseleave", () => { if (!pinned) closeT = setTimeout(() => notch.classList.remove("open"), 500); });
+$("#pin").onclick = (e) => { e.stopPropagation(); pinned = !pinned; $("#pin").setAttribute("aria-pressed", pinned); };
+
+/* pages */
+function page(p) {
+  notch.classList.toggle("tall", p === "settings");
+  $$(".nav [role=tab]").forEach(b => b.setAttribute("aria-selected", b.dataset.p === p));
+  $$(".pg").forEach(g => g.classList.toggle("on", g.id === p));
+}
+$$(".nav [role=tab]").forEach(b => b.onclick = () => page(b.dataset.p));
+$$(".snav [role=tab]").forEach(b => b.onclick = () => {
+  $$(".snav [role=tab]").forEach(o => o.setAttribute("aria-selected", o === b));
+  $$(".sg").forEach(g => g.classList.toggle("on", g.dataset.s === b.dataset.s));
+});
+$$(".sw").forEach(s => s.addEventListener("click", () => s.setAttribute("aria-checked", s.getAttribute("aria-checked") !== "true")));
+const on = (id) => $(id).getAttribute("aria-checked") === "true";
+$("#rmsw").addEventListener("click", () => on("#rmsw") ? root.setAttribute("data-rm", "") : root.removeAttribute("data-rm"));
+$("#facesw").addEventListener("click", () => on("#facesw") ? root.removeAttribute("data-noface") : root.setAttribute("data-noface", ""));
+$("#tintsw").addEventListener("click", () => root.style.setProperty("--tint", on("#tintsw") ? "255, 140, 60" : "140, 140, 150"));
+
+const ACC = [["#ffb000", "#1a1100"], ["#7ab8ff", "#04121f"], ["#67d996", "#03180c"], ["#ff7ab6", "#20040f"], ["#f3f1ec", "#111"]];
+ACC.forEach(([c, ink], i) => { const b = document.createElement("button"); b.style.background = c; b.setAttribute("aria-label", "Accent " + c); b.setAttribute("aria-pressed", i === 0);
+  b.onclick = () => { root.style.setProperty("--accent", c); root.style.setProperty("--accent-ink", ink); root.style.setProperty("--accent-soft", c + "24"); $$("#sw button").forEach(o => o.setAttribute("aria-pressed", o === b)); }; $("#sw").append(b); });
+
+[["media", "Now playing"], ["cue", "Cue voice"], ["today", "Today"], ["focus", "Focus"], ["agents", "Coding agents"], ["todo", "To-do"], ["sys", "System"]].forEach(([k, n]) => {
+  const o = document.createElement("div"); o.className = "opt";
+  o.innerHTML = `<div><b>${n}</b></div><button class="sw" role="switch" aria-checked="true" aria-label="${n}"></button>`;
+  o.querySelector(".sw").onclick = (e) => { const v = e.currentTarget.getAttribute("aria-checked") !== "true"; e.currentTarget.setAttribute("aria-checked", v); $(`[data-w=${k}]`).style.display = v ? "" : "none"; };
+  $("#wsets").append(o);
+});
+
+$$(".range").forEach(r => { const f = () => { r.style.setProperty("--v", r.value + "%"); if (r.nextElementSibling && r.nextElementSibling.classList.contains("num") && !r.classList.contains("slider")) r.nextElementSibling.textContent = r.value; }; r.oninput = f; f(); });
+$$(".qa button[aria-pressed]").forEach(b => b.onclick = () => b.setAttribute("aria-pressed", b.getAttribute("aria-pressed") !== "true"));
+$$(".todo input").forEach(i => i.onchange = () => $("#tleft").textContent = `${$$(".todo input").filter(x => !x.checked).length} left`);
+$$(".sess").forEach(s => s.onclick = () => $$(".sess").forEach(o => o.classList.toggle("on", o === s)));
+
+const CLIPS = [["LINK", "figma.com/file/cue-notch-v3"], ["TEXT", "Meeting moved to Thursday 3 pm"], ["CODE", "npm run tauri dev"], ["TEXT", "Flat 4B, 22 Lake Road"], ["LINK", "elevenlabs.io/app/agents"], ["CODE", "git checkout -b product/cue"]];
+const renderClips = (q = "") => { $("#cl").innerHTML = CLIPS.filter(([, t]) => t.toLowerCase().includes(q.toLowerCase())).map(([k, t]) => `<div class="c"><span class="k">${k}</span><span class="ell">${t}</span></div>`).join("") || '<div class="sub">Nothing matches.</div>'; };
+renderClips(); $("#cs").oninput = (e) => renderClips(e.target.value);
+
+const drop = $("#drop");
+drop.ondragover = (e) => { e.preventDefault(); drop.classList.add("over"); };
+drop.ondragleave = () => drop.classList.remove("over");
+drop.ondrop = (e) => { e.preventDefault(); drop.classList.remove("over"); for (const f of e.dataTransfer.files) { const ext = (f.name.split(".").pop() || "").slice(0, 4).toUpperCase(); $("#shelf").insertAdjacentHTML("afterbegin", `<div class="file"><div class="doc">${ext}</div><span class="ell"></span></div>`); $("#shelf .file span").textContent = f.name; } };
+
+$("#ans").onclick = () => { $("#callbox").innerHTML = '<div class="av">M</div><b>Mom</b><span class="sub num">On call · 0:01</span><button class="btn" style="margin-top:8px">End call</button>'; };
+$("#dec").onclick = () => { $("#callbox").innerHTML = '<span class="sub">Declined. No calls right now.</span>'; };
+$("#sendbtn").onclick = () => { $("#sent").textContent = "Sent to iPhone ✓"; };
+/* settings behaviour */
+document.addEventListener("click", (e) => {
+  const b = e.target.closest("button"); if (!b) return;
+  if (b.closest(".seg")) { const many = b.parentElement.querySelectorAll("button").length > 3 && b.parentElement.closest("[data-s=voice]"); if (many) b.setAttribute("aria-pressed", b.getAttribute("aria-pressed") !== "true"); else b.parentElement.querySelectorAll("button").forEach(o => o.setAttribute("aria-pressed", o === b)); }
+  if (b.dataset.save) { const n = $("#" + b.dataset.save + "-n"); const v = $("#" + b.dataset.save).value; n.className = "note " + (v ? "ok" : "warn"); n.textContent = v ? "Saved in Windows Credential Manager. It never touches disk or the page." : "Paste a key first."; }
+  if (b.dataset.rm) { $("#" + b.dataset.rm).value = ""; const n = $("#" + b.dataset.rm + "-n"); n.className = "note"; n.textContent = "Key removed."; }
+  if (b.dataset.test) { b.textContent = "Testing…"; setTimeout(() => { b.textContent = "✓ Works"; }, 700); }
+  if (b.dataset.connect !== undefined) { const card = b.closest(".card2"); card.querySelector(".pill").className = "pill ok"; card.querySelector(".pill").textContent = "Connected · 4 models"; b.textContent = "Disconnect"; b.classList.remove("acc"); }
+  if (b.dataset.hooks) { $("#mt").textContent = "Install " + b.dataset.hooks + " hooks"; $("#modal").classList.add("on"); $("#mok").dataset.who = b.dataset.hooks; }
+  if (b.dataset.unhook) { $("#mt").textContent = "Remove Cue's " + b.dataset.unhook + " hooks"; $("#modal").classList.add("on"); }
+  if (b.hasAttribute("data-rec")) { $$("[data-rec]").forEach(o => o.classList.remove("rec")); b.classList.add("rec"); b.textContent = "Press keys…"; }
+});
+addEventListener("keydown", (e) => {
+  const r = $(".kbdrec.rec"); if (!r) return; e.preventDefault(); e.stopImmediatePropagation();
+  if (["Control", "Alt", "Shift", "Meta"].includes(e.key)) return;
+  const k = [e.ctrlKey && "Ctrl", e.altKey && "Alt", e.shiftKey && "Shift", e.metaKey && "Win", e.key.length === 1 ? e.key.toUpperCase() : e.key].filter(Boolean).join("+");
+  r.textContent = k; r.classList.remove("rec"); const f = r.parentElement.querySelector(".flag"); if (f) f.remove();
+}, true);
+$("#mcancel").onclick = () => $("#modal").classList.remove("on");
+$("#mok").onclick = () => { $("#modal").classList.remove("on"); $$("[data-hooks]").forEach(b => { if (b.dataset.hooks === $("#mok").dataset.who) { const p = b.closest(".card2").querySelector(".pill"); p.className = "pill ok"; p.textContent = "Hooks installed"; b.textContent = "Reinstall…"; b.classList.remove("acc"); } }); };
+$("#cust").oninput = (e) => { const v = e.target.value.trim(), n = $("#cust-n"); let u; try { u = new URL(v.includes("://") ? v : "http://" + v); } catch { u = null; }
+  if (!v) { n.className = "note"; n.textContent = "Type an address to see where your questions would go."; }
+  else if (!u) { n.className = "note warn"; n.textContent = "Not a valid http:// or https:// address."; }
+  else if (/^(localhost|127\.|\[?::1)/.test(u.hostname)) { n.className = "note ok"; n.textContent = "Nothing leaves your PC: the server runs on this computer."; }
+  else { n.className = "note warn"; n.textContent = u.protocol === "https:" ? "This address is another machine: what you ask is sent to it." : "Another machine over plain http: a key would travel unencrypted."; } };
+$("#ntfytest").onclick = () => { $("#ntfy-n").textContent = "Sent — check your phone."; $("#ntfy-n").className = "note ok"; };
+$("#clr").onclick = () => { $("#clr").textContent = "Cleared"; };
+$$("#settings .slider[aria-label='Auto-close seconds']").forEach(r => r.addEventListener("input", () => r.nextElementSibling.textContent = r.value + " s"));
+let fRun = true; $("#fbtn").onclick = () => { fRun = !fRun; $("#fbtn").textContent = fRun ? "Pause" : "Resume"; };
+
+/* voice demo: the ElevenLabs agent answers; Hermes works in the background */
+let talking = false;
+function talk() {
+  if (talking) return; talking = true; open(); page("home"); notch.dataset.mic = "";
+  F.mood = "listen"; $("#vstate").textContent = "Listening…"; $("#a").textContent = "";
+  const q = "What's on today, and can Hermes summarise my unread email?";
+  let i = 0; const tq = () => { $("#q").textContent = `“${q.slice(0, ++i)}”`; if (i < q.length) setTimeout(tq, 26); else think(); }; setTimeout(tq, 300);
+  function think() {
+    delete notch.dataset.mic; F.mood = "think"; $("#vstate").textContent = "Thinking…";
+    setTimeout(() => {
+      F.mood = "talk"; $("#vstate").textContent = "Speaking · Esc stops"; $("#herm").innerHTML = "<b>Hermes</b> · reading 12 emails…";
+      const a = "Design review at 11:30, then you're free until 4. Hermes is reading your 12 unread emails — I'll read you the summary in a minute.";
+      let j = 0; const ta = () => { $("#a").textContent = a.slice(0, ++j); if (j < a.length) setTimeout(ta, 16); else done(); }; ta();
+    }, 800);
+  }
+  function done() { F.mood = "happy"; $("#vstate").textContent = "Hold Space to talk"; talking = false; setTimeout(() => { $("#herm").innerHTML = "<b>Hermes</b> · summary ready"; F.mood = "music"; }, 2500); }
+}
+$("#talk").onclick = (e) => { e.stopPropagation(); talk(); };
+
+addEventListener("keydown", (e) => {
+  if (e.target.tagName === "INPUT" || e.target.tagName === "SELECT") return;
+  if (e.code === "Space") { e.preventDefault(); talk(); }
+  else if (e.key === "Escape") { pinned = false; $("#pin").setAttribute("aria-pressed", false); notch.classList.remove("open"); }
+  else if (e.key.toLowerCase() === "m") { notch.classList.add("toasting"); setTimeout(() => notch.classList.remove("toasting"), 3200); }
+});
+addEventListener("mousemove", (e) => { F.look = Math.max(-1, Math.min(1, (e.clientX - innerWidth / 2) / 500)); });
+
+const tick = () => { const d = new Date(); const hm = d.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" }).replace(/\s?[AP]M/i, ""); $("#clock").textContent = hm; $("#bigclock").textContent = hm; $("#date").textContent = d.toLocaleDateString([], { weekday: "long", day: "numeric", month: "long" }); };
+tick(); setInterval(tick, 10000);
+let fs = 15 * 60 + 24; setInterval(() => { if (!fRun) return; fs = Math.max(0, fs - 1); $("#ft").textContent = `${Math.floor(fs / 60)}:${String(fs % 60).padStart(2, "0")}`; $("#ring").style.strokeDashoffset = 207.3 * (1 - fs / 1500); }, 1000);
+let pos = 98; setInterval(() => { pos = (pos + 1) % 243; $("#pos").textContent = `${Math.floor(pos / 60)}:${String(pos % 60).padStart(2, "0")}`; const w = (pos / 243 * 100) + "%"; $("#prog").style.width = w; $("#prog2").style.width = w; }, 1000);
+
+/* music bars are simulated here; the app reads the real audio level */
+const bars = (el, n) => { el.innerHTML = "<i></i>".repeat(n); return [...el.children]; };
+const eqs = bars($("#eqs"), 4), viz = bars($("#viz"), 28), viz2 = bars($("#viz2"), 28), vu = bars($("#vu"), 12);
+function frame(now) {
+  const t = now / 1000, still = rm();
+  if (F.mood === "talk") F.level = still ? .5 : .3 + .7 * Math.abs(Math.sin(now / 95));
+  drawFace($("#face"), t); if (notch.classList.contains("open")) drawFace($("#bigface"), t);
+  eqs.forEach((b, i) => b.style.height = (still ? 6 : 3 + 9 * Math.abs(Math.sin(t * 5 + i))) + "px");
+  if (notch.classList.contains("open")) {
+    for (const set of [viz, viz2]) set.forEach((b, i) => b.style.height = (still ? 8 : 3 + 20 * Math.abs(Math.sin(t * 3 + i * .5)) * (.5 + .5 * Math.sin(t + i))) + "px");
+    const lv = F.mood === "talk" || F.mood === "listen";
+    vu.forEach((b, i) => b.style.height = (lv && !still ? 3 + 12 * Math.abs(Math.sin(t * 9 + i)) : 3) + "px");
+  }
+  requestAnimationFrame(frame);
+}
+requestAnimationFrame(frame);
+setTimeout(open, 600);
+</script>
+</body>
+</html>
