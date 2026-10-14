@@ -150,7 +150,7 @@ src/                 front end (TypeScript, no framework)
 src-tauri/           Rust backend: window, named pipe, media, phone, providers
 hook/                cue-hook.exe, the agent relay
 design/              prototypes; cue.html is the design the app follows
-docs/                architecture, handoff plan, licence notes
+docs/                licence notes
 ```
 
 ### Log
@@ -167,4 +167,4 @@ docs/                architecture, handoff plan, licence notes
 
 ## Licence and credits
 
-Cue is source-available under the [PolyForm Strict License 1.0.0](LICENSE): you can read the code and use the app for noncommercial purposes, but you may not change it, build on it or redistribute it. It includes code derived from the MIT-licensed [Coucou](https://github.com/Louis-CFM/coucou) by Louis Raillé, whose notice is kept in [NOTICE](NOTICE). Coucou's name, its character and its artwork are not part of Cue. Details are in [docs/LICENCE_AND_ATTRIBUTION.md](docs/LICENCE_AND_ATTRIBUTION.md).
+Cue is © Mithun Sidhaarth AM and source-available under the [PolyForm Strict License 1.0.0](LICENSE): you can read the code and use the app for noncommercial purposes, but you may not change it, build on it or redistribute it. Third-party notices are in [NOTICE](NOTICE).

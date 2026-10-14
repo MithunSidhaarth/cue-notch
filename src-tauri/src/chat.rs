@@ -316,8 +316,8 @@ mod tests {
 
     #[test]
     fn the_prompt_greets_by_first_name_and_claims_web_search_only_for_claude() {
-        let p = system_prompt_for(Some("Louis"), true);
-        assert!(p.starts_with("You are Cue, Louis's personal AI assistant living at the top of their screen."));
+        let p = system_prompt_for(Some("Alex"), true);
+        assert!(p.starts_with("You are Cue, Alex's personal AI assistant living at the top of their screen."));
         assert!(p.contains("web search access"));
         assert!(p.contains("light Markdown"));
         let p = system_prompt_for(None, false);

@@ -30,7 +30,7 @@ const T = {
   get longestSession() { return t("Longest session"); },
   get approved() { return t("Approved"); },
   get denied() { return t("Denied"); },
-  footer: "Cue · github.com/Louis-CFM/cue",
+  footer: "Cue · cue.mithunsidhaarth.in",
 };
 
 /**

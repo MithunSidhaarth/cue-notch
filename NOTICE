@@ -1,8 +1,10 @@
 Cue
-Copyright (c) 2026 Mithun Sidhaarth AM. Licensed under the PolyForm Strict License 1.0.0 (see LICENSE):
-you may use Cue for noncommercial purposes, but you may not change it, build on it, or redistribute it.
+Copyright (c) 2026 Mithun Sidhaarth AM. Licensed under the PolyForm Strict License 1.0.0 (see LICENSE).
 
-Cue includes code derived from Coucou (https://github.com/Louis-CFM/coucou), used under the MIT License:
+Third-party notices
+-------------------
+
+Portions of Cue are used under the following licence, whose terms require this notice to be kept:
 
   MIT License
 

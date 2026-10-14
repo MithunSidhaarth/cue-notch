@@ -48,8 +48,8 @@
       "icons/128x128@2x.png",
       "icons/icon.ico"
     ],
-    "resources": { "../target/release/cue-hook.exe": "cue-hook.exe" },
-    "copyright": "© Mithun Sidhaarth AM. Includes MIT-licensed code © Louis Raillé (Coucou).",
+    "resources": { "../target/release/cue-hook.exe": "cue-hook.exe", "../NOTICE": "NOTICE.txt" },
+    "copyright": "© Mithun Sidhaarth AM. Third-party notices: NOTICE.txt",
     "category": "DeveloperTool",
     "shortDescription": "Cue lives at the top of your screen",
     "longDescription": "Cue lives at the top of your screen: it shows your Claude Code sessions and a few integrations, and lets you approve, answer, chat and drop files without leaving what you are doing.",
