@@ -3,7 +3,7 @@ name = "cue-hook"
 description = "Relays Claude Code hook events to Cue over a named pipe (Windows) or a Unix socket (Linux)"
 version.workspace = true
 edition.workspace = true
-license.workspace = true
+license-file = "../LICENSE"
 
 [[bin]]
 name = "cue-hook"

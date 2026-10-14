@@ -11,7 +11,7 @@ Approve what your coding agents ask for, watch them build, control whatever is p
 ![Windows 10/11](https://img.shields.io/badge/Windows-10%2F11-0078D4?logo=windows)
 ![Tauri 2](https://img.shields.io/badge/Tauri-2-FFC131?logo=tauri&logoColor=black)
 ![Rust](https://img.shields.io/badge/Rust-backend-000?logo=rust)
-![Code: MIT](https://img.shields.io/badge/code-MIT-green)
+![Licence: PolyForm Strict](https://img.shields.io/badge/licence-PolyForm%20Strict-black)
 
 </div>
 
@@ -167,4 +167,4 @@ docs/                architecture, handoff plan, licence notes
 
 ## Licence and credits
 
-Code is MIT, see [LICENSE](LICENSE). Cue is built from the MIT-licensed code of [Coucou](https://github.com/Louis-CFM/coucou) by Louis Raillé. Coucou's name, its character and its artwork are not part of Cue. Details are in [docs/LICENCE_AND_ATTRIBUTION.md](docs/LICENCE_AND_ATTRIBUTION.md).
+Cue is source-available under the [PolyForm Strict License 1.0.0](LICENSE): you can read the code and use the app for noncommercial purposes, but you may not change it, build on it or redistribute it. It includes code derived from the MIT-licensed [Coucou](https://github.com/Louis-CFM/coucou) by Louis Raillé, whose notice is kept in [NOTICE](NOTICE). Coucou's name, its character and its artwork are not part of Cue. Details are in [docs/LICENCE_AND_ATTRIBUTION.md](docs/LICENCE_AND_ATTRIBUTION.md).

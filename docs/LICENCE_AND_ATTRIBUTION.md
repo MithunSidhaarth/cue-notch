@@ -2,11 +2,12 @@
 
 ## Code
 
-Cue's code is released under the MIT licence (see [LICENSE](../LICENSE)).
+Cue is © Mithun Sidhaarth AM and source-available under the PolyForm Strict License 1.0.0
+(see [LICENSE](../LICENSE)). You may read the code and use Cue for noncommercial purposes.
+You may not change it, make new works based on it, or redistribute it.
 
-Cue started from the MIT-licensed code of [Coucou](https://github.com/Louis-CFM/coucou)
-by Louis Raillé. His copyright notice is kept in `LICENSE`, as MIT requires.
-Everything added or changed for Cue is © Mithun Sidhaarth AM, under the same MIT licence.
+Cue includes code derived from [Coucou](https://github.com/Louis-CFM/coucou) by Louis Raillé,
+used under the MIT licence. His copyright and permission notice are kept in [NOTICE](../NOTICE).
 
 ## What is not included
 

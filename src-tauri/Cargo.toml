@@ -4,7 +4,7 @@ description = "Cue for Windows — Cue lives at the top of your screen"
 authors = ["Mithun Sidhaarth AM"]
 version.workspace = true
 edition.workspace = true
-license.workspace = true
+license-file = "../LICENSE"
 
 [lib]
 name = "cue_lib"
