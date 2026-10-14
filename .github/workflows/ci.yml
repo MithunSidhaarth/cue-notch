@@ -6,6 +6,11 @@ on:
     tags: ["v*"]
   pull_request:
 
+permissions:
+  contents: write      # publish releases on tags
+  id-token: write      # sign the build provenance
+  attestations: write
+
 jobs:
   windows:
     runs-on: windows-latest
