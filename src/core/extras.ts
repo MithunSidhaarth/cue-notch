@@ -149,11 +149,28 @@ const ALERT_KEY = "cue.planAlert";
  * The mark (80 or 95) the 5-hour window just crossed, once per window: the
  * window is told apart by its reset time.
  */
-export function planAlert(usedPct: number, resetsAt: number): 80 | 95 | null {
+export function planAlert(usedPct: number, resetsAt: number, plan: "claude" | "codex" = "claude"): 80 | 95 | null {
   const mark = usedPct >= 95 ? 95 : usedPct >= 80 ? 80 : null;
   if (mark == null) return null;
-  const last = load<{ resetsAt: number; mark: number } | null>(ALERT_KEY, null);
+  const key = plan === "claude" ? ALERT_KEY : `${ALERT_KEY}.${plan}`;
+  const last = load<{ resetsAt: number; mark: number } | null>(key, null);
   if (last && last.resetsAt === resetsAt && last.mark >= mark) return null;
-  store(ALERT_KEY, { resetsAt, mark });
+  store(key, { resetsAt, mark });
   return mark;
+}
+
+/**
+ * When the window fills at the pace between two readings of it, or null when
+ * it is not filling or resets first. ponytail: a straight line from two
+ * samples; a burst then a pause over-reads, fine for "about when".
+ */
+export function projectedFullAt(
+  prev: { usedPct: number; at: number } | null,
+  now: { usedPct: number; at: number },
+  resetsAt: number,
+): number | null {
+  if (!prev || now.at <= prev.at || now.usedPct <= prev.usedPct || now.usedPct >= 100) return null;
+  const perMs = (now.usedPct - prev.usedPct) / (now.at - prev.at);
+  const at = now.at + (100 - now.usedPct) / perMs;
+  return at < resetsAt ? at : null;
 }

@@ -43,10 +43,20 @@ pub struct Relay {
 
 impl Relay {
     pub fn current() -> Self {
-        Self {
-            exe: settings::hook_exe_path().to_string_lossy().to_string(),
-            windows: cfg!(windows),
+        let path = settings::hook_exe_path();
+        #[allow(unused_mut)]
+        let mut exe = path.to_string_lossy().to_string();
+        // "C:\Users\Jane Doe\…" needs quotes, and quotes mean different things to
+        // cmd and PowerShell; whichever one the agent runs, the 8.3 form needs none.
+        #[cfg(windows)]
+        if !is_plain(&exe) {
+            if let Some(short) = crate::platform::short_path(&path).map(|p| p.to_string_lossy().to_string()) {
+                if is_plain(&short) {
+                    exe = short;
+                }
+            }
         }
+        Self { exe, windows: cfg!(windows) }
     }
 
     /// The relay followed by `args`, as one command line for `shell`.
@@ -83,7 +93,7 @@ fn sh_quote(s: &str) -> String {
 
 /// A path no Windows shell would split or interpret.
 fn is_plain(path: &str) -> bool {
-    path.chars().all(|c| c.is_ascii_alphanumeric() || matches!(c, '\\' | ':' | '.' | '_' | '-'))
+    path.chars().all(|c| c.is_ascii_alphanumeric() || matches!(c, '\\' | ':' | '.' | '_' | '-' | '~'))
 }
 
 // ── Agents ────────────────────────────────────────────────────────────────────
@@ -141,7 +151,8 @@ impl Agent {
             Agent::Gemini => vec![home.join(".gemini").join("settings.json")],
             Agent::Antigravity => vec![home.join(".gemini").join("config").join("hooks.json")],
             Agent::Cursor => vec![home.join(".cursor").join("hooks.json")],
-            Agent::Codex => vec![home.join(".codex").join("hooks.json")],
+            // Codex reads CODEX_HOME when it is set, ~/.codex otherwise.
+            Agent::Codex => vec![std::env::var_os("CODEX_HOME").map(PathBuf::from).filter(|p| p.is_absolute()).unwrap_or_else(|| home.join(".codex")).join("hooks.json")],
             Agent::Copilot => vec![home.join(".copilot").join("hooks").join("cue.json")],
             Agent::Muse => vec![home.join(".config").join("muse").join("settings.json")],
             // OpenCode and Amp read ~/.config on Windows too.

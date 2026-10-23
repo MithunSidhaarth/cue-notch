@@ -26,6 +26,7 @@ const STRINGS = {
   noModel: N_("Choose a model"),
   loading: N_("Loading models…"),
   noKey: N_("No API key — add it in Settings."),
+  noKeyClaudeCode: N_("No API key: Claude Code answers with your plan, if it's installed. Add a key in Settings to pick a model."),
   openSettings: N_("Open Settings"),
 };
 
@@ -153,7 +154,8 @@ function buildPicker(onChange: () => void): Picker {
     }
     // Nothing is asked of a provider that has no key yet.
     if (p.key && !(await Bridge.secretPresent(p.key))) {
-      if (ticket === request) status(t(STRINGS.noKey), true);
+      // Without a key, chat.rs sends Anthropic questions through Claude Code.
+      if (ticket === request) status(t(p.id === "anthropic" ? STRINGS.noKeyClaudeCode : STRINGS.noKey), true);
       return;
     }
     if (ticket !== request) return;
@@ -345,6 +347,10 @@ export function buildPrompt(onHeightChange: () => void): ViewHost {
       input.disabled = sending;
     },
     focus() {
+      if (State.chatDraft != null) {
+        input.value = State.chatDraft;
+        State.chatDraft = null;
+      }
       input.focus();
       input.select();
     },

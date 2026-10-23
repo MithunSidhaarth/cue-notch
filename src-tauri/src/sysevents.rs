@@ -127,6 +127,33 @@ pub fn start(app: &AppHandle, prefs: &PlusPrefs) {
         }
     });
     let _ = std::thread::Builder::new().name("cue-sys".into()).spawn(run);
+    let app = app.clone();
+    let _ = std::thread::Builder::new().name("cue-quiet".into()).spawn(move || watch_quiet(&app));
+}
+
+/// True while Windows itself would hold notifications: a full-screen app or
+/// game, a presentation, or quiet hours.
+fn system_quiet() -> bool {
+    use windows::Win32::UI::Shell::{
+        SHQueryUserNotificationState, QUNS_BUSY, QUNS_PRESENTATION_MODE, QUNS_QUIET_TIME, QUNS_RUNNING_D3D_FULL_SCREEN,
+    };
+    let state = unsafe { SHQueryUserNotificationState() };
+    matches!(state, Ok(s) if s == QUNS_BUSY || s == QUNS_RUNNING_D3D_FULL_SCREEN || s == QUNS_PRESENTATION_MODE || s == QUNS_QUIET_TIME)
+}
+
+/// Tells the island when that changes, so it stops sliding out over a
+/// full-screen game or a presentation. ponytail: a 2 s poll; Windows sends no
+/// event for it that a hidden window can get.
+fn watch_quiet(app: &AppHandle) {
+    let mut last = false;
+    loop {
+        let now = system_quiet();
+        if now != last {
+            last = now;
+            let _ = app.emit_to(crate::island::WINDOW_LABEL, "system-quiet", now);
+        }
+        std::thread::sleep(std::time::Duration::from_secs(2));
+    }
 }
 
 /// Settings saved: the hook follows the volume HUD switch.

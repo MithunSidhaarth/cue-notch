@@ -240,6 +240,8 @@ class AppState {
 
   isPinned = false;
   paused = false;
+  /** Windows holds notifications now (full-screen app, presentation, quiet hours). */
+  systemQuiet = false;
 
   uploadProgress = 0;
   uploadDuration = 2.4;
@@ -250,6 +252,8 @@ class AppState {
   noteMessage: string | null = null;
   searchResult: SearchResult | null = null;
   chatHistory: ChatMessage[] = [];
+  /** Text the chat field opens with once (clipboard "Ask about this"). */
+  chatDraft: string | null = null;
 /** The widget page is showing Settings: the island takes the tall size. */
   homeTall = false;
   pendingApproval: ApprovalInfo | null = null;

@@ -452,7 +452,7 @@ fn current_session() -> Option<Session> {
         .GetSessions()
         .ok()?
         .into_iter()
-        .find(|x| x.SourceAppUserModelId().map(|h| h.to_string() == aumid).unwrap_or(false))
+        .find(|x| x.SourceAppUserModelId().map(|h| h == aumid).unwrap_or(false))
 }
 
 pub fn refresh(app: &AppHandle) -> Option<PlayerState> {

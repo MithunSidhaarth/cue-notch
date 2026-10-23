@@ -209,6 +209,12 @@ pub async fn send(
     let provider = settings.chat_provider.as_str();
     let model = model_for(settings, provider);
     if provider == ANTHROPIC || provider.is_empty() {
+        // The default on a fresh install, where there is rarely an API key: a
+        // signed-in Claude Code answers instead of a dead "API key missing".
+        if !secrets::present(claude::KEY) && crate::claude_cli::cli().is_some() {
+            let model = model_for(settings, crate::claude_cli::ID);
+            return crate::claude_cli::send(app, chat, &model, query, context).await;
+        }
         return claude::send(chat, &model, query, context).await;
     }
     if provider == crate::claude_cli::ID {
@@ -316,8 +322,8 @@ mod tests {
 
     #[test]
     fn the_prompt_greets_by_first_name_and_claims_web_search_only_for_claude() {
-        let p = system_prompt_for(Some("Alex"), true);
-        assert!(p.starts_with("You are Cue, Alex's personal AI assistant living at the top of their screen."));
+        let p = system_prompt_for(Some("Louis"), true);
+        assert!(p.starts_with("You are Cue, Louis's personal AI assistant living at the top of their screen."));
         assert!(p.contains("web search access"));
         assert!(p.contains("light Markdown"));
         let p = system_prompt_for(None, false);

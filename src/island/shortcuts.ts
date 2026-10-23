@@ -11,6 +11,7 @@ import type { BotEmoteName, IslandViewName } from "../core/layout";
 import { cyclePill, islandKeyAction, navigate, pillByNumber, type IslandKeyAction } from "../core/shortcuts";
 import { Sound } from "../core/sound";
 import { State } from "../core/state";
+import { t } from "../i18n/i18n";
 
 const CLAUDE_DESKTOP_ID = "agent_claude-desktop";
 
@@ -25,6 +26,8 @@ export interface ShortcutHost {
   takeKeyboard(): void;
   /** Hands Ctrl+O / Ctrl+E to the view on screen (the Mac posts notifications). */
   viewCommand(command: ViewCommand): void;
+  /** Answers the waiting permission request, as its Allow / Deny buttons do. */
+  decide(decision: "allow" | "deny"): void;
 }
 
 /** What the open view is asked to do: open the highlighted item, toggle the diff. */
@@ -56,6 +59,18 @@ export function runGlobalShortcut(host: ShortcutHost, action: string, resume: ()
     case "openChat":
       resume();
       host.alert("prompt");
+      break;
+
+    case "allowRequest":
+    case "denyRequest":
+      // A question needs its answer picked in the card; only a permission is
+      // a yes or a no.
+      if (!State.pendingApproval || State.pendingApproval.questions) {
+        host.emote("annoyed");
+        Sound.play("error");
+      } else {
+        host.decide(action === "allowRequest" ? "allow" : "deny");
+      }
       break;
 
     case "goToAlert": {
@@ -170,6 +185,18 @@ function inTextField(target: EventTarget | null): boolean {
 
 export function registerShortcutHandlers(host: ShortcutHost, resume: () => void) {
   void onEvent<string>("shortcut", (action) => runGlobalShortcut(host, action, resume));
+  // A combination another app already holds is only logged and tagged in
+  // Settings; say so once at launch, after the greeting, or the key just "does nothing".
+  window.setTimeout(() => {
+    void Bridge.shortcutsStatus()
+      .then((report) => {
+        if (!report?.actions.some((a) => a.status === "inUse")) return;
+        State.noteMessage = t("A Cue shortcut is taken by another app. Pick another in Settings → Shortcuts.");
+        host.alert("note");
+        window.setTimeout(() => host.collapse(), 6000);
+      })
+      .catch(() => {});
+  }, 8000);
   // Capture phase: the chat field stops its own key events from bubbling.
   window.addEventListener(
     "keydown",

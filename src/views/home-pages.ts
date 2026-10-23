@@ -194,6 +194,18 @@ export function buildFilesPage(actions: ViewActions): HomePage {
         { class: "hm-c", title: tl("Copy again"), onclick: () => { actions.blip(); void Bridge.clipboardCopy(c.text); } },
         h("span", { class: "hm-k", text: kind(c.text) }),
         h("span", { class: "hm-ell", text: c.text.replace(/\s+/g, " ").slice(0, 200) }),
+        h("button", {
+          class: "hm-ask",
+          text: tl("Ask"),
+          title: tl("Ask Cue about this"),
+          onclick: (e: Event) => {
+            e.stopPropagation();
+            actions.blip();
+            // ponytail: capped at 4000 characters; a whole file belongs in a dropped file.
+            State.chatDraft = `${t("Explain this:")}\n\n${c.text.slice(0, 4000)}`;
+            actions.setView("prompt");
+          },
+        }),
       ));
     }
   }

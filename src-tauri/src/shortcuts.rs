@@ -66,6 +66,10 @@ pub const ACTIONS: &[ActionDef] = &[
     action("nextPill", "Ctrl+Alt+Right", true, true),
     action("prevPill", "Ctrl+Alt+Left", true, true),
     action("muteToggle", "Ctrl+Alt+S", true, true),
+    // Windows only, after the Mac's: answer the waiting permission without
+    // opening the island. Off by default, so nothing is allowed by accident.
+    action("allowRequest", "Ctrl+Alt+Y", false, true),
+    action("denyRequest", "Ctrl+Alt+D", false, true),
 ];
 
 pub fn find(id: &str) -> Option<&'static ActionDef> {
@@ -87,6 +91,8 @@ pub fn description(id: &str) -> &'static str {
         "nextPill" => n_("Next pill"),
         "prevPill" => n_("Previous pill"),
         "muteToggle" => n_("Mute or unmute Cue"),
+        "allowRequest" => n_("Allow the waiting permission request"),
+        "denyRequest" => n_("Deny the waiting permission request"),
         _ => "Cue",
     }
 }
@@ -436,7 +442,9 @@ mod tests {
     #[test]
     fn every_mac_action_has_a_default_and_keeps_its_id() {
         let ids: Vec<_> = ACTIONS.iter().map(|a| a.id).collect();
-        assert_eq!(ids, MAC_IDS);
+        // The Mac's, in its order, then the Windows-only ones.
+        assert_eq!(ids[..MAC_IDS.len()], MAC_IDS);
+        assert_eq!(ids[MAC_IDS.len()..], ["allowRequest", "denyRequest"]);
     }
 
     // testAllDefaultsHaveModifier
@@ -462,7 +470,8 @@ mod tests {
     #[test]
     fn only_the_island_toggle_is_off_by_default() {
         for def in ACTIONS {
-            assert_eq!(def.enabled_by_default, def.id != "toggleIsland", "{}", def.id);
+            let off = matches!(def.id, "toggleIsland" | "allowRequest" | "denyRequest");
+            assert_eq!(def.enabled_by_default, !off, "{}", def.id);
         }
     }
 
@@ -475,7 +484,10 @@ mod tests {
             match outcome {
                 Ok(_) => assert!(def.ported && def.enabled_by_default, "{}", def.id),
                 Err(s) if reserved => assert_eq!(s.status, Status::NotPorted),
-                Err(s) => assert_eq!((def.id, s.status), ("toggleIsland", Status::Off)),
+                Err(s) => {
+                    assert!(matches!(def.id, "toggleIsland" | "allowRequest" | "denyRequest"), "{}", def.id);
+                    assert_eq!(s.status, Status::Off);
+                }
             }
         }
     }
@@ -533,7 +545,7 @@ mod tests {
         // Same key, other modifiers: not a duplicate.
         stored.insert("jumpToTerminal".into(), Binding { keys: "Ctrl+Shift+A".into(), enabled: true });
         let plan = super::plan(&stored, never);
-        assert!(plan.iter().all(|(d, o)| o.is_ok() || !d.ported || d.id == "toggleIsland"));
+        assert!(plan.iter().all(|(d, o)| o.is_ok() || !d.ported || !d.enabled_by_default));
 
         // A disabled action doesn't hold its keys.
         stored.insert("goToAlert".into(), Binding { keys: "Ctrl+Alt+A".into(), enabled: false });

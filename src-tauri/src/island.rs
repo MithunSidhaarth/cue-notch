@@ -238,48 +238,6 @@ fn target_monitor(app: &AppHandle, pref: &str) -> Option<Monitor> {
         .or_else(|| monitors.into_iter().next())
 }
 
-#[cfg(test)]
-mod display_tests {
-    use super::*;
-
-    fn d(name: &str, x: i32, y: i32, w: i32, h: i32) -> DisplayId {
-        DisplayId { name: name.into(), x, y, w, h }
-    }
-
-    #[test]
-    fn a_display_is_found_again_after_changes() {
-        let dell = d("DELL U2720Q", 1920, 0, 2560, 1440);
-        let lap = d("eDP-1", 0, 0, 1920, 1200);
-        let key = dell.key();
-        assert_eq!(pick_display(&key, &[lap.clone(), dell.clone()]), Some(1));
-        // Rearranged: the Dell moved to the left of the laptop.
-        let moved = [d("eDP-1", 2560, 0, 1920, 1200), d("DELL U2720Q", 0, 0, 2560, 1440)];
-        assert_eq!(pick_display(&key, &moved), Some(1));
-        // Resolution changed, still the only Dell.
-        let rescaled = [lap.clone(), d("DELL U2720Q", 1920, 0, 1920, 1080)];
-        assert_eq!(pick_display(&key, &rescaled), Some(1));
-        // Unplugged: nothing, so the caller falls back to the primary display.
-        assert_eq!(pick_display(&key, &[lap.clone()]), None);
-    }
-
-    #[test]
-    fn two_identical_monitors_are_told_apart_by_place() {
-        let a = d("LG 27UL500", 0, 0, 1920, 1080);
-        let b = d("LG 27UL500", 1920, 0, 1920, 1080);
-        assert_eq!(pick_display(&b.key(), &[a.clone(), b.clone()]), Some(1));
-        assert_eq!(pick_display(&a.key(), &[a, b]), Some(0));
-    }
-
-    #[test]
-    fn preferences_saved_before_still_match() {
-        let lap = d("eDP-1", 0, 0, 1920, 1200);
-        let ext = d("HDMI-1", 1920, 0, 1920, 1080);
-        assert_eq!(pick_display("at:1920,0", &[lap.clone(), ext.clone()]), Some(1));
-        assert_eq!(pick_display("primary", &[lap, ext]), None);
-        assert_eq!(pick_display("at:nonsense", &[]), None);
-    }
-}
-
 pub fn screen_info(app: &AppHandle, pref: &str) -> ScreenInfo {
     match target_monitor(app, pref) {
         Some(m) => {
@@ -364,13 +322,13 @@ pub fn spawn_cursor_poll(app: AppHandle, gate: Arc<PollGate>) {
                 // nobody can reach. Checked about twice a second — the cursor poll
                 // is already running, so this costs one monitor query.
                 ticks = ticks.wrapping_add(1);
-                if ticks % screen_every == 0 {
+                if ticks.is_multiple_of(screen_every) {
                     let now = current_screen_key(&app);
                     if now.is_some() && now != last_screen {
                         let first = last_screen.is_none();
                         last_screen = now;
                         if !first {
-                            crate::log::line("display layout changed — repositioning".to_string());
+                            crate::log::line("display layout changed — repositioning");
                             let _ = app.emit_to(WINDOW_LABEL, "screen-changed", ());
                         }
                     }
@@ -386,6 +344,10 @@ pub fn spawn_cursor_poll(app: AppHandle, gate: Arc<PollGate>) {
                     Ok(s) => (s.width as f64 / scale, s.height as f64 / scale),
                     Err(_) => (PANEL_W, PANEL_H),
                 };
+                // A cursor outside the window is on another display (one stacked
+                // above reads as a small negative y): it must never count as over
+                // the island, or the notch slides out on its own.
+                let (x, y) = if x >= 0.0 && y >= 0.0 && x <= size.0 && y <= size.1 { (x, y) } else { (-10_000.0, -10_000.0) };
                 if (x - last.0).abs() < 1.0 && (y - last.1).abs() < 1.0 {
                     continue;
                 }
@@ -471,5 +433,47 @@ pub fn refresh_click_through(app: &AppHandle, gate: &PollGate) {
 pub fn set_ignore_cursor(app: &AppHandle, ignore: bool) {
     if let Some(win) = window(app) {
         let _ = win.set_ignore_cursor_events(ignore);
+    }
+}
+
+#[cfg(test)]
+mod display_tests {
+    use super::*;
+
+    fn d(name: &str, x: i32, y: i32, w: i32, h: i32) -> DisplayId {
+        DisplayId { name: name.into(), x, y, w, h }
+    }
+
+    #[test]
+    fn a_display_is_found_again_after_changes() {
+        let dell = d("DELL U2720Q", 1920, 0, 2560, 1440);
+        let lap = d("eDP-1", 0, 0, 1920, 1200);
+        let key = dell.key();
+        assert_eq!(pick_display(&key, &[lap.clone(), dell.clone()]), Some(1));
+        // Rearranged: the Dell moved to the left of the laptop.
+        let moved = [d("eDP-1", 2560, 0, 1920, 1200), d("DELL U2720Q", 0, 0, 2560, 1440)];
+        assert_eq!(pick_display(&key, &moved), Some(1));
+        // Resolution changed, still the only Dell.
+        let rescaled = [lap.clone(), d("DELL U2720Q", 1920, 0, 1920, 1080)];
+        assert_eq!(pick_display(&key, &rescaled), Some(1));
+        // Unplugged: nothing, so the caller falls back to the primary display.
+        assert_eq!(pick_display(&key, std::slice::from_ref(&lap)), None);
+    }
+
+    #[test]
+    fn two_identical_monitors_are_told_apart_by_place() {
+        let a = d("LG 27UL500", 0, 0, 1920, 1080);
+        let b = d("LG 27UL500", 1920, 0, 1920, 1080);
+        assert_eq!(pick_display(&b.key(), &[a.clone(), b.clone()]), Some(1));
+        assert_eq!(pick_display(&a.key(), &[a, b]), Some(0));
+    }
+
+    #[test]
+    fn preferences_saved_before_still_match() {
+        let lap = d("eDP-1", 0, 0, 1920, 1200);
+        let ext = d("HDMI-1", 1920, 0, 1920, 1080);
+        assert_eq!(pick_display("at:1920,0", &[lap.clone(), ext.clone()]), Some(1));
+        assert_eq!(pick_display("primary", &[lap, ext]), None);
+        assert_eq!(pick_display("at:nonsense", &[]), None);
     }
 }

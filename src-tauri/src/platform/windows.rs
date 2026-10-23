@@ -137,13 +137,31 @@ pub fn reveal_folder(path: &str) {
 /// Our own `where`: walks %PATH% against %PATHEXT%, no shell involved.
 /// Rust quotes arguments correctly for `.cmd`/`.bat` targets since 1.77, so
 /// spawning `code.cmd` directly is safe.
+/// `path`'s 8.3 form (`C:\Users\JANEDO~1\…`): no spaces, so every shell runs it
+/// unquoted. None where the volume keeps no short names.
+pub fn short_path(path: &std::path::Path) -> Option<PathBuf> {
+    use std::os::windows::ffi::{OsStrExt, OsStringExt};
+    let wide: Vec<u16> = path.as_os_str().encode_wide().chain(Some(0)).collect();
+    let mut buf = vec![0u16; 1024];
+    let n = unsafe {
+        ::windows::Win32::Storage::FileSystem::GetShortPathNameW(::windows::core::PCWSTR(wide.as_ptr()), Some(&mut buf))
+    } as usize;
+    (n > 0 && n < buf.len()).then(|| PathBuf::from(std::ffi::OsString::from_wide(&buf[..n])))
+}
+
+/// A file a process can be started from. An app execution alias (WindowsApps)
+/// is a reparse point is_file() cannot follow, yet it runs fine.
+fn is_runnable(p: &std::path::Path) -> bool {
+    p.is_file() || std::fs::symlink_metadata(p).is_ok_and(|m| !m.is_dir())
+}
+
 pub fn find_on_path(stem: &str) -> Option<PathBuf> {
     let exts = std::env::var("PATHEXT").unwrap_or_else(|_| ".COM;.EXE;.BAT;.CMD".into());
     let dirs = std::env::var_os("PATH")?;
     for dir in std::env::split_paths(&dirs) {
         for ext in exts.split(';').filter(|e| !e.is_empty()) {
             let candidate = dir.join(format!("{stem}{}", ext.to_lowercase()));
-            if candidate.is_file() {
+            if is_runnable(&candidate) {
                 return Some(candidate);
             }
         }
@@ -168,7 +186,7 @@ pub fn codex_candidates() -> Vec<PathBuf> {
         out.push(home.join(".bun").join("bin").join("codex.exe"));
         out.push(home.join(".local").join("bin").join("codex.exe"));
     }
-    out.retain(|p| p.is_file());
+    out.retain(|p| is_runnable(p));
     out
 }
 
@@ -232,7 +250,7 @@ extern "system" {
 /// EXTENDED_NAME_FORMAT::NameDisplay.
 const NAME_DISPLAY: i32 = 3;
 
-/// The account's display name ("Alex Morgan"): the directory's for a domain
+/// The account's display name ("Louis Raille"): the directory's for a domain
 /// or Entra account, else the local account's "Full name", else nothing.
 pub fn user_full_name() -> Option<String> {
     directory_display_name().or_else(local_full_name).filter(|n| !n.trim().is_empty())

@@ -29,7 +29,7 @@ pub fn models() -> Vec<ModelInfo> {
         .collect()
 }
 
-fn cli() -> Option<std::path::PathBuf> {
+pub fn cli() -> Option<std::path::PathBuf> {
     crate::platform::find_on_path("claude").or_else(|| {
         let p = crate::platform::home_dir().join(".local").join("bin").join(if cfg!(windows) { "claude.exe" } else { "claude" });
         p.is_file().then_some(p)

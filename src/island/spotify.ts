@@ -33,7 +33,7 @@ export function applySpotify(island: SpotifyHost, next: SpotifyState) {
   Spotify.state = next;
   syncPillName();
   // Only on not playing → playing (SpotifyController.setPlaying).
-  if (!wasPlaying && State.spotifyPlaying && !State.paused && State.mode === "hidden") {
+  if (!wasPlaying && State.spotifyPlaying && !State.paused && !State.systemQuiet && State.mode === "hidden") {
     island.revealSilently();
   }
   State.notify();

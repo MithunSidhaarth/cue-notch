@@ -283,6 +283,8 @@ function handleHook(island: Island, payload: HookPayload) {
     if (State.mode === "expanded" || State.pendingApproval) return;
     // Not opened: it stays as a dot in the bar once the card has gone.
     Missed.add(body ? `${title} · ${body}` : title, failed);
+    // Nothing slides over a full-screen game or a presentation: the dot keeps it.
+    if (State.systemQuiet) return;
     showLive(
       { peek: (ms) => island.peekLive(ms), resize: () => island.liveResized() },
       { kind: "agent", level: null, muted: failed, charging: false, title, text: body, detail },
@@ -296,7 +298,7 @@ function handleHook(island: Island, payload: HookPayload) {
       if (isAlert) island.setView(view);
     } else if (isAlert) {
       island.alert(view);
-    } else if (State.mode === "hidden") {
+    } else if (State.mode === "hidden" && !State.systemQuiet) {
       island.reveal();
     }
   };

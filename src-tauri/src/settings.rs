@@ -36,7 +36,7 @@ pub struct Settings {
     /// Like `hooks_installed`, the real state wins at launch over what was stored.
     pub plan_relay_installed: bool,
     /// Show the Codex plan pill (5 h / weekly limits from `codex app-server`).
-    /// Off by default; nothing is installed for it.
+    /// On by default where the Codex CLI is found; nothing is installed for it.
     pub show_codex_plan_in_notch: bool,
     /// Who the chat talks to: "anthropic", a cloud provider of
     /// openai_compat.rs ("openai", "google", "openrouter"), or a model server
@@ -153,7 +153,7 @@ impl Default for Settings {
             model: default_model(),
             show_plan_in_notch: false,
             plan_relay_installed: false,
-            show_codex_plan_in_notch: false,
+            show_codex_plan_in_notch: !crate::platform::codex_candidates().is_empty(),
             chat_provider: crate::chat::ANTHROPIC.into(),
             chat_models: BTreeMap::new(),
             ollama_url: String::new(),

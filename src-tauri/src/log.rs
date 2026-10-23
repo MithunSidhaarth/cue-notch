@@ -27,3 +27,12 @@ pub fn line(message: impl AsRef<str>) {
         let _ = writeln!(file, "{stamp} {}", message.as_ref());
     }
 }
+
+/// The last `n` lines of the log, for "Copy log" in the tray menu: a bug that
+/// only shows on someone else's PC needs what happened there.
+pub fn tail(n: usize) -> String {
+    let text = std::fs::read_to_string(platform::data_dir().join("cue.log")).unwrap_or_default();
+    let lines: Vec<&str> = text.lines().collect();
+    let tail = lines[lines.len().saturating_sub(n)..].join("\n");
+    format!("Cue {} on {}\n{tail}", env!("CARGO_PKG_VERSION"), std::env::consts::OS)
+}

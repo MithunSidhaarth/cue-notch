@@ -150,7 +150,7 @@ export function registerLiveHandlers(host: LiveHost) {
       return;
     }
     // A message never covers a ringing call, and Focus holds them (calls still ring).
-    if (ringing != null || Focus.running) {
+    if (ringing != null || Focus.running || State.systemQuiet) {
       State.notify();
       return;
     }

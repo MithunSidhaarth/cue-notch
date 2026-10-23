@@ -6,7 +6,7 @@ import { h, clear, dot } from "./dom";
 import { Bridge, onEvent } from "../core/bridge";
 import { State } from "../core/state";
 import { Sound } from "../core/sound";
-import { Focus, Inbox, Todos, clock, firstResetNotice, planAlert, type ExtraView } from "../core/extras";
+import { Focus, Inbox, Todos, clock, firstResetNotice, planAlert, projectedFullAt, type ExtraView } from "../core/extras";
 import { Live, showLive, type LiveHost } from "../island/live";
 import { t } from "../i18n/i18n";
 
@@ -273,14 +273,28 @@ export function buildExtraView(view: ExtraView): { el: HTMLElement; sync(): void
   return { el, sync: () => c.sync() };
 }
 
-/** The 5-hour Claude window crossed 80 % or 95 %: a card, and the phone. */
-export function planUsageAlert(usedPct: number, resetsAt: number) {
-  const mark = planAlert(usedPct, resetsAt);
+/** The last reading of each plan's 5-hour window, for the pace. */
+const lastReading: Partial<Record<"claude" | "codex", { usedPct: number; at: number; resetsAt: number }>> = {};
+
+/** A 5-hour window crossed 80 % or 95 %: a card, and the phone, with when it fills at this pace. */
+export function planUsageAlert(usedPct: number, resetsAt: number, plan: "claude" | "codex" = "claude") {
+  const now = { usedPct, at: Date.now() };
+  const prev = lastReading[plan];
+  // A new window starts a new pace.
+  lastReading[plan] = { ...now, resetsAt };
+  const mark = planAlert(usedPct, resetsAt, plan);
   if (mark == null) return;
-  const mins = Math.max(0, Math.round((resetsAt - Date.now()) / 60000));
-  const text = t("Claude plan at {p}% — resets in {m} min", { p: Math.round(usedPct), m: mins });
+  const mins = Math.max(0, Math.round((resetsAt - now.at) / 60000));
+  let text = plan === "claude"
+    ? t("Claude plan at {p}% — resets in {m} min", { p: Math.round(usedPct), m: mins })
+    : t("Codex plan at {p}% — resets in {m} min", { p: Math.round(usedPct), m: mins });
+  const full = projectedFullAt(prev?.resetsAt === resetsAt ? prev : null, now, resetsAt);
+  if (full != null) {
+    text += t(" · full at about {time}", { time: new Date(full).toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" }) });
+  }
   if (host) showLive(host, { kind: "battery", level: usedPct / 100, muted: false, charging: false, text }, 6000);
-  void Bridge.phonePush(t("Claude usage {p}%", { p: mark }), text, mark >= 95, true);
+  const title = plan === "claude" ? t("Claude usage {p}%", { p: mark }) : t("Codex usage {p}%", { p: mark });
+  void Bridge.phonePush(title, text, mark >= 95, true);
 }
 
 /** A timer per window (5-hour, weekly): when it resets, a card and the phone. */

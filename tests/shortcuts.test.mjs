@@ -22,7 +22,8 @@ const MAC_IDS = [
 // ── Defaults (testDefaultsExhaustive, testAllDefaultsHaveModifier, testNoDefaultDuplicates) ──
 
 test("every Mac action has a default, in the Mac's order, with its Mac id", () => {
-  assert.deepEqual(SHORTCUTS.map((d) => d.id), MAC_IDS);
+  // The Mac's, in its order, then the Windows-only ones.
+  assert.deepEqual(SHORTCUTS.map((d) => d.id), [...MAC_IDS, "allowRequest", "denyRequest"]);
   for (const d of SHORTCUTS) assert.ok(SHORTCUT_TEXT[d.id], `${d.id} has no label`);
 });
 
@@ -75,7 +76,7 @@ test("the descriptions the Wayland portal shows are the labels Settings shows", 
 // testEnabledByDefault
 test("only the island toggle is off by default; the one not ported yet is reserved", () => {
   for (const d of SHORTCUTS) {
-    assert.equal(d.enabledByDefault, d.id !== "toggleIsland", d.id);
+    assert.equal(d.enabledByDefault, !["toggleIsland", "allowRequest", "denyRequest"].includes(d.id), d.id);
     assert.equal(d.ported, d.id !== "attachFrontWindow", d.id);
   }
   assert.deepEqual(activeKeys({}).map(([id]) => id), [
@@ -279,6 +280,7 @@ const host = {
   setPinned: (on) => did.push(`pin:${on}`),
   takeKeyboard: () => did.push("keyboard"),
   viewCommand: (c) => did.push(`view:${c}`),
+  decide: (d) => did.push(`decide:${d}`),
 };
 const resume = () => did.push("resume");
 // The island listens on `window`, which here is the bare global object.
@@ -502,4 +504,21 @@ test("island keys: the highlight walks the list on screen, Ctrl+O opens it, Ctrl
   did = [];
   runIslandKey(host, { kind: "diff" });
   assert.deepEqual(did, ["view:toggleDiff"]);
+});
+
+test("allow and deny answer only a waiting permission, never a question", () => {
+  did = [];
+  State.pendingApproval = null;
+  runGlobalShortcut(host, "allowRequest", resume);
+  assert.deepEqual(did, ["emote:annoyed"], "nothing waiting");
+  did = [];
+  State.pendingApproval = { requestId: "r1", pillId: "p", questions: [{ question: "?" }] };
+  runGlobalShortcut(host, "denyRequest", resume);
+  assert.deepEqual(did, ["emote:annoyed"], "a question needs its answer, not allow/deny");
+  did = [];
+  State.pendingApproval = { requestId: "r2", pillId: "p" };
+  runGlobalShortcut(host, "allowRequest", resume);
+  runGlobalShortcut(host, "denyRequest", resume);
+  assert.deepEqual(did, ["decide:allow", "decide:deny"]);
+  State.pendingApproval = null;
 });

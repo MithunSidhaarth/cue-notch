@@ -277,3 +277,30 @@ Current week (all models): 66% used · resets Oct 15, 4:29am (Asia/Kolkata)
   assert.equal(late.fiveHour.resetsAt, new Date(2026, 9, 11, 9, 0).getTime());
   assert.equal(parseUsageText("nothing here", now), null);
 });
+
+// ── Usage alerts (src/core/extras.ts) ─────────────────────────────────────────
+
+import { planAlert, projectedFullAt } from "../src/core/extras.ts";
+
+test("the pace between two readings says when the window fills, if before it resets", () => {
+  const hour = 3_600_000;
+  // 60 % → 80 % in an hour: the last 20 % takes one more hour.
+  assert.equal(projectedFullAt({ usedPct: 60, at: 0 }, { usedPct: 80, at: hour }, 5 * hour), 2 * hour);
+  // It resets first: nothing to say.
+  assert.equal(projectedFullAt({ usedPct: 60, at: 0 }, { usedPct: 80, at: hour }, 1.5 * hour), null);
+  // Not filling, no earlier reading, or already full.
+  assert.equal(projectedFullAt({ usedPct: 80, at: 0 }, { usedPct: 80, at: hour }, 5 * hour), null);
+  assert.equal(projectedFullAt(null, { usedPct: 80, at: hour }, 5 * hour), null);
+  assert.equal(projectedFullAt({ usedPct: 90, at: 0 }, { usedPct: 100, at: hour }, 5 * hour), null);
+});
+
+test("Claude and Codex each get their own 80 % alert per window", () => {
+  const mem = new Map();
+  window.localStorage = { getItem: (k) => mem.get(k) ?? null, setItem: (k, v) => mem.set(k, v) };
+  assert.equal(planAlert(81, 1000, "claude"), 80);
+  assert.equal(planAlert(82, 1000, "claude"), null);
+  assert.equal(planAlert(81, 1000, "codex"), 80);
+  assert.equal(planAlert(96, 1000, "codex"), 95);
+  assert.equal(planAlert(81, 2000, "codex"), 80, "a new window alerts again");
+  delete window.localStorage;
+});

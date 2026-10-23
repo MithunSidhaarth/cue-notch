@@ -27,6 +27,8 @@ export const SHORTCUT_TEXT = {
   nextPill: N_("Next pill"),
   prevPill: N_("Previous pill"),
   muteToggle: N_("Mute or unmute Cue"),
+  allowRequest: N_("Allow the waiting permission request"),
+  denyRequest: N_("Deny the waiting permission request"),
   island: {
     nextPrev: N_("Next or previous pill"),
     byNumber: N_("Go to pill 1 to 9"),
@@ -52,7 +54,9 @@ export type ShortcutId =
   | "attachFrontWindow"
   | "nextPill"
   | "prevPill"
-  | "muteToggle";
+  | "muteToggle"
+  | "allowRequest"
+  | "denyRequest";
 
 export interface ShortcutDef {
   id: ShortcutId;
@@ -75,6 +79,8 @@ export const SHORTCUTS: readonly ShortcutDef[] = [
   def("nextPill", "Ctrl+Alt+Right", true, true),
   def("prevPill", "Ctrl+Alt+Left", true, true),
   def("muteToggle", "Ctrl+Alt+S", true, true),
+  def("allowRequest", "Ctrl+Alt+Y", false, true),
+  def("denyRequest", "Ctrl+Alt+D", false, true),
 ];
 
 export interface Binding {

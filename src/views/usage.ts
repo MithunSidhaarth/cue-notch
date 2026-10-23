@@ -134,6 +134,7 @@ export function refreshCodexPlanUsage(): void {
       const usage = parseCodexPlan(result);
       if (usage) {
         State.codexPlanUsage = usage;
+        if (usage.fiveHour) planUsageAlert(usage.fiveHour.usedPct, usage.fiveHour.resetsAt, "codex");
         State.notify();
       }
     })
