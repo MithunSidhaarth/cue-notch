@@ -27,3 +27,9 @@ Portions of Cue are used under the following licence, whose terms require this n
   LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
   OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
   SOFTWARE.
+
+---
+
+Unbounded (src/assets/fonts/unbounded-latin-*.ttf), used by the Cinema lyrics view.
+Copyright 2022 The Unbounded Project Authors. Licensed under the SIL Open Font
+License, Version 1.1; the full licence is in src/assets/fonts/Unbounded-OFL.txt.
