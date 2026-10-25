@@ -986,6 +986,11 @@ export class Island {
     // spends most of its life in. Geometry still has to finish retracting.
     const settling =
       this.width.animating || this.height.animating || this.radius.animating;
+    // Tock has to finish travelling home too. The outline retracts faster than
+    // Tock's springs, and stopping on the outline alone froze Tock half-way
+    // down the screen, outside the notch, until the next wake. Its springs
+    // settle in well under a second, unlike the looping animations above.
+    const botMoving = !this.botCx.settled || !this.botCy.settled || !this.botSize.settled;
     if (settling) this.animFrames.push(rawMs);
     else if (this.animFrames.length > 3) {
       // The first frame's time is the wait before the animation, not a frame.
@@ -995,9 +1000,8 @@ export class Island {
       this.animFrames = [];
     } else this.animFrames = [];
     const busy = State.mode === "hidden"
-      ? settling
-      : settling ||
-        !this.botCx.settled || !this.botCy.settled || !this.botSize.settled ||
+      ? settling || botMoving
+      : settling || botMoving ||
         greetingActive || this.engine.busy || UploadSeq.isActive || viewAnimating;
 
     if (busy) {
