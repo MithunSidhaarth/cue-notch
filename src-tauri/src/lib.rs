@@ -787,6 +787,8 @@ pub fn run() {
             sysevents::screen_snip,
             files::shelf_list,
             moments::lyrics,
+            moments::lyricglow_now,
+            moments::lyricglow_open,
             moments::net_totals,
             sysevents::clipboard_copy_secret,
             sysevents::clipboard_clear_if,

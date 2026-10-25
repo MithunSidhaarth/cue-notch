@@ -3518,6 +3518,19 @@ html[data-dir="rtl"] #views :is(.bubble, .reply .md-p, .reply .md-h, .reply .md-
 .hm-lyric.in { animation: hm-lyric-in 260ms ease-out; }
 @keyframes hm-lyric-in { from { opacity: 0; transform: translateY(5px); } }
 :root[data-rm] .hm-lyric.in { animation: none; }
+
+/* LyricGlow's line: each word fills with the album's colours as it is sung. */
+.hm-lyric.hm-lg { font: 650 13px var(--font); letter-spacing: -0.01em; filter: drop-shadow(0 0 8px color-mix(in srgb, var(--lg-a) 45%, transparent)); }
+.hm-lg-w {
+  --p: 0;
+  background: linear-gradient(90deg, var(--lg-a), var(--lg-b)) 0 0 / calc(var(--p) * 100%) 100% no-repeat, rgba(255, 255, 255, 0.34);
+  -webkit-background-clip: text; background-clip: text; color: transparent;
+}
+.hm-lyric.wait { letter-spacing: 3px; }
+.hm-lg-dot { display: inline-block; color: var(--lg-a); animation: hm-lg-dot 900ms ease-in-out infinite; }
+@keyframes hm-lg-dot { 0%, 100% { opacity: 0.35; transform: translateY(0); } 50% { opacity: 1; transform: translateY(-3px); } }
+:root[data-rm] .hm-lg-dot { animation: none; }
+.hm-glow-btn svg { color: #ff5fb0; filter: drop-shadow(0 0 4px rgba(255, 45, 149, 0.6)); }
 .hm-saved { overflow: auto; }
 .hm-saved .hm-msg { cursor: pointer; }
 /* A finished session's receipt (the Agents page). */
