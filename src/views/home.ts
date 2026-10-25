@@ -97,13 +97,10 @@ export function buildCueBar(): { el: HTMLElement; sync(): void } {
   const time = h("span", { class: "hm-clock" });
   // Two sessions at once: one half each, in place of the track.
   const halves = h("div", { class: "hm-halves" });
-  // LyricGlow's line, drawn by the same player extras as the widget page.
-  const song = buildSongExtras(() => {});
-  song.line.classList.add("hm-bar-lyric");
-  const live = h("div", { class: "hm-live" }, art, title, artist, song.line);
+  const live = h("div", { class: "hm-live" }, art, title, artist);
   const el = h("div", { class: "hm-bar" }, live, halves, eq, net, missed, dots, time);
-  // Closed notch and LyricGlow singing the same song: the bar becomes the line
-  // (the widget page has its own).
+  // Closed notch and LyricGlow singing the same song: the notch becomes the
+  // Cinema letterbox (views/cinema.ts; the widget page has its own line).
   window.setInterval(() => {
     const now = State.mode !== "expanded" ? Glow.live() : null;
     const on = !!now && (now.state === "ok" || now.state === "loading");
@@ -112,7 +109,6 @@ export function buildCueBar(): { el: HTMLElement; sync(): void } {
       el.classList.toggle("lyrics", on);
       State.notify();
     }
-    if (on) song.tick();
   }, 250);
   let dotsKey = "-";
   let missedKey = "-";
