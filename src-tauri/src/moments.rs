@@ -39,6 +39,49 @@ pub async fn lyrics(title: String, artist: String, album: String, duration: f64)
     json["syncedLyrics"].as_str().filter(|s| !s.trim().is_empty()).map(str::to_string)
 }
 
+// ── LyricGlow ────────────────────────────────────────────────────────────────
+
+/// LyricGlow, the full-screen lyrics app, answers on this loopback port while it runs.
+const LYRICGLOW: &str = "http://127.0.0.1:47821";
+
+fn lyricglow_client() -> Option<reqwest::Client> {
+    reqwest::Client::builder()
+        .timeout(Duration::from_millis(400))
+        .no_proxy()
+        .build()
+        .ok()
+}
+
+/// What LyricGlow is showing: the track, its position, the line being sung with
+/// word timings, and the album colours. None when LyricGlow is not running.
+/// Nothing leaves the PC: the request goes to 127.0.0.1 only.
+#[tauri::command]
+pub async fn lyricglow_now() -> Option<serde_json::Value> {
+    let response = lyricglow_client()?
+        .get(format!("{LYRICGLOW}/now"))
+        .send()
+        .await
+        .ok()?;
+    if !response.status().is_success() {
+        return None;
+    }
+    let body = crate::net::read_capped(response, 64 * 1024).await.ok()?;
+    serde_json::from_slice(&body).ok()
+}
+
+/// Brings the LyricGlow window to the front.
+#[tauri::command]
+pub async fn lyricglow_open() -> bool {
+    let Some(client) = lyricglow_client() else {
+        return false;
+    };
+    client
+        .get(format!("{LYRICGLOW}/open"))
+        .send()
+        .await
+        .is_ok_and(|r| r.status().is_success())
+}
+
 // ── Network ──────────────────────────────────────────────────────────────────
 
 /// Bytes received and sent since boot, summed over the real adapters. The page

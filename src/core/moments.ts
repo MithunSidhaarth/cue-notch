@@ -55,6 +55,48 @@ export function lyricAt(lines: LyricLine[], seconds: number): string {
   return current;
 }
 
+// ── LyricGlow ────────────────────────────────────────────────────────────────
+
+/** One sung word, in seconds from the start of the track. */
+export interface GlowWord {
+  text: string;
+  start: number;
+  end: number;
+}
+
+/** What LyricGlow (the full-screen lyrics app) answers on its loopback port. */
+export interface GlowNow {
+  title?: string | null;
+  artist?: string | null;
+  position: number;
+  playing: boolean;
+  /** idle, loading, none (no lyrics for this song) or ok. */
+  state: string;
+  line?: { text: string; interlude: boolean; start: number; end: number; words: GlowWord[] } | null;
+  primary?: string;
+  secondary?: string;
+}
+
+/** LyricGlow's position at `at` (ms), run forward from when it was read at `readAt` (ms). */
+export function glowPosition(now: GlowNow, readAt: number, at: number): number {
+  return now.playing ? now.position + Math.max(0, at - readAt) / 1000 : now.position;
+}
+
+/** How much of each word has been sung at `seconds`, from 0 to 1. */
+export function wordProgress(words: GlowWord[], seconds: number): number[] {
+  return words.map((w) => {
+    if (seconds <= w.start) return 0;
+    if (w.end <= w.start || seconds >= w.end) return 1;
+    return (seconds - w.start) / (w.end - w.start);
+  });
+}
+
+/** True when LyricGlow is reporting the same song the notch is showing. */
+export function glowMatches(now: GlowNow, title: string, artist: string): boolean {
+  const norm = (s: string | null | undefined) => (s ?? "").toLowerCase().replace(/\s+/g, " ").trim();
+  return norm(now.title) === norm(title) && (norm(now.artist) === norm(artist) || norm(artist).startsWith(norm(now.artist)));
+}
+
 // ── Saved songs ──────────────────────────────────────────────────────────────
 
 export interface SavedSong {

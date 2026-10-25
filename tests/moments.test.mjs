@@ -66,3 +66,16 @@ test("transfer rates read short", () => {
   assert.equal(formatRate(12 * 1024 * 1024), "12 MB/s");
   assert.equal(formatRate(1.5 * 1024 * 1024 * 1024), "1.5 GB/s");
 });
+
+test("LyricGlow's line runs on from when it was read, and lights words as they are sung", async () => {
+  const { glowPosition, wordProgress, glowMatches } = await import("../src/core/moments.ts");
+  const now = { position: 10, playing: true, state: "ok", title: "Party Girl", artist: "StaySolidRocky" };
+  assert.equal(glowPosition(now, 1000, 1500), 10.5);
+  assert.equal(glowPosition({ ...now, playing: false }, 1000, 1500), 10);
+  const words = [{ text: "Party ", start: 10, end: 10.4 }, { text: "girl", start: 10.4, end: 11 }];
+  assert.deepEqual(wordProgress(words, 10.2).map((p) => +p.toFixed(2)), [0.5, 0]);
+  assert.deepEqual(wordProgress(words, 12), [1, 1]);
+  assert.equal(glowMatches(now, "party girl", "StaySolidRocky"), true);
+  assert.equal(glowMatches(now, "Party Girl", "StaySolidRocky, Lil Uzi Vert"), true);
+  assert.equal(glowMatches(now, "Another Song", "StaySolidRocky"), false);
+});
