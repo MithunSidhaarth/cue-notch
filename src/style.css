@@ -3616,8 +3616,14 @@ html[data-dir="rtl"] #views :is(.bubble, .reply .md-p, .reply .md-h, .reply .md-
   -webkit-background-clip: text; background-clip: text; color: transparent;
   filter: drop-shadow(0 0 26px color-mix(in srgb, var(--lg-a) 50%, transparent));
 }
-.cin-word.pop { animation: cin-pop 420ms cubic-bezier(0.22, 1.6, 0.36, 1); }
-@keyframes cin-pop { from { transform: scale(0.82) translateY(6px); opacity: 0.4; } }
+.cin-word.pop { animation: cin-pop 240ms cubic-bezier(0.22, 1.5, 0.36, 1); }
+@keyframes cin-pop { from { transform: scale(0.9) translateY(3px); opacity: 0.75; } }
+/* Minimise (Cinema) and its way back (the ordinary bar): a short bar, and a box. */
+.cin-fold, .hm-cin-btn { flex: none; position: relative; width: 26px; height: 22px; border-radius: 7px; background: rgba(255, 255, 255, 0.08); }
+.cin-fold::after { content: ""; position: absolute; left: 8px; right: 8px; top: 10px; height: 2px; border-radius: 1px; background: rgba(255, 255, 255, 0.75); }
+.hm-cin-btn { display: none; width: 22px; height: 18px; border-radius: 6px; }
+.hm-cin-btn::after { content: ""; position: absolute; left: 6px; right: 6px; top: 5px; bottom: 5px; border: 1.5px solid rgba(255, 255, 255, 0.75); border-radius: 2px; }
+.hm-bar.lyrics .hm-cin-btn { display: block; }
 .cin-word.cin-wait { display: flex; gap: 18px; background: none; filter: none; }
 .cin-word.cin-wait i { width: 14px; height: 14px; border-radius: 7px; background: var(--lg-a); animation: hm-lg-dot 900ms ease-in-out infinite; }
 .cin-wave { position: absolute; left: 0; bottom: 4px; width: 100%; height: 22px; opacity: 0.85; }

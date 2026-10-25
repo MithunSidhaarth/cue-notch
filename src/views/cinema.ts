@@ -10,12 +10,34 @@ import { Glow } from "../core/glow";
 import { glowLineAt, wordProgress, type GlowWord } from "../core/moments";
 import { Spotify, currentArtwork, formatTime } from "../core/spotify";
 import { CINEMA_W } from "../core/layout";
+import { tl } from "../i18n/i18n";
 
 const SVG = "http://www.w3.org/2000/svg";
 /** Words shown on each side of the sung one. */
 const SIDE = 3;
 /** Widest the sung word may be, in px, before it is drawn smaller. */
 const WORD_MAX_W = 560;
+/** How far ahead of the clock the words run, in seconds: the read, the frame and the eye all lag a little. */
+const LEAD = 0.16;
+const MINI_KEY = "cue.cinema-mini";
+
+/** Whether the user folded Cinema back into the ordinary notch (kept in this PC's webview storage). */
+export const CinemaPref = {
+  get mini(): boolean {
+    try {
+      return localStorage.getItem(MINI_KEY) === "1";
+    } catch {
+      return false;
+    }
+  },
+  toggle() {
+    try {
+      localStorage.setItem(MINI_KEY, this.mini ? "0" : "1");
+    } catch {
+      /* storage refused: nothing to keep */
+    }
+  },
+};
 
 /** The sung word's size: 64 px, up to 92 px for a held note, and never wider than the stage. */
 export function cinemaWordSize(text: string, seconds: number): number {
@@ -34,10 +56,12 @@ export function cinemaWordAt(words: GlowWord[], pos: number): number {
   return k;
 }
 
-export function buildCinema(): { el: HTMLElement; sync(on: boolean): void } {
+export function buildCinema(): { el: HTMLElement; fold: HTMLElement; sync(on: boolean): void } {
   const art = h("i", { class: "cin-art" });
   const meta = h("span", { class: "cin-meta hm-ell" });
   const time = h("span", { class: "cin-time" });
+  // Folds Cinema back into the ordinary notch; island.ts takes the click (the band itself lets clicks through).
+  const fold = h("i", { class: "cin-fold", title: tl("Minimise") });
   const past = h("div", { class: "cin-past" });
   const word = h("span", { class: "cin-word" });
   const now = h("div", { class: "cin-now" }, word);
@@ -55,7 +79,7 @@ export function buildCinema(): { el: HTMLElement; sync(on: boolean): void } {
   const el = h(
     "div",
     { class: "cin" },
-    h("div", { class: "cin-head" }, art, meta, time),
+    h("div", { class: "cin-head" }, art, meta, time, fold),
     h("div", { class: "cin-stage" }, past, now, next),
     wave,
   );
@@ -95,7 +119,7 @@ export function buildCinema(): { el: HTMLElement; sync(on: boolean): void } {
 
     const live = Glow.live();
     const lines = Glow.lines;
-    const pos = Glow.position(at);
+    const pos = Glow.position(at) + LEAD;
     const i = glowLineAt(lines, pos);
     const l = i >= 0 ? lines[i] : null;
     const after = lines[i + 1];
@@ -168,6 +192,7 @@ export function buildCinema(): { el: HTMLElement; sync(on: boolean): void } {
 
   return {
     el,
+    fold,
     sync(want: boolean) {
       el.classList.toggle("on", want);
       const track = Spotify.state.track;

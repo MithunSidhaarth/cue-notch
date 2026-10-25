@@ -98,7 +98,9 @@ export function buildCueBar(): { el: HTMLElement; sync(): void } {
   // Two sessions at once: one half each, in place of the track.
   const halves = h("div", { class: "hm-halves" });
   const live = h("div", { class: "hm-live" }, art, title, artist);
-  const el = h("div", { class: "hm-bar" }, live, halves, eq, net, missed, dots, time);
+  // Cinema folded away while LyricGlow sings: this brings it back (island.ts takes the click).
+  const cinBtn = h("i", { class: "hm-cin-btn", title: tl("Show lyrics") });
+  const el = h("div", { class: "hm-bar" }, live, halves, eq, net, missed, dots, time, cinBtn);
   // Closed notch and LyricGlow singing the same song: the notch becomes the
   // Cinema letterbox (views/cinema.ts; the widget page has its own line).
   window.setInterval(() => {

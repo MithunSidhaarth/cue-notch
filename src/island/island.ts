@@ -29,7 +29,7 @@ import type { ViewCommand } from "./shortcuts";
 import { LIVE_W, Live, buildLive } from "./live";
 import { buildMiniPlayer } from "./miniplayer";
 import { barIsSplit, barLyrics, buildCueBar } from "../views/home";
-import { buildCinema } from "../views/cinema";
+import { CinemaPref, buildCinema } from "../views/cinema";
 import { applyMotion } from "../core/motion";
 
 const BOT_OVERHANG = 40;
@@ -79,7 +79,7 @@ export class Island {
   private peeking = false;
   /** The bar of the closed notch and of the widget page (views/home.ts). */
   private cueBar!: { el: HTMLElement; sync(): void };
-  private cinema!: { el: HTMLElement; sync(on: boolean): void };
+  private cinema!: { el: HTMLElement; fold: HTMLElement; sync(on: boolean): void };
   private miniGrid!: HTMLElement;
   private live = buildLive();
   private mini = buildMiniPlayer();
@@ -672,6 +672,21 @@ export class Island {
 
   // ── Geometry ────────────────────────────────────────────────────────────────
 
+  /** LyricGlow is singing in the closed notch and the user has not folded the letterbox away. */
+  private cinemaOn(): boolean {
+    return State.mode === "compact" && !Live.current && barLyrics() && !CinemaPref.mini;
+  }
+
+  /** A click on Cinema's minimise, or on the bar's button that brings it back. */
+  private cinemaToggleHit(x: number, y: number): boolean {
+    if (State.mode !== "compact" || Live.current || !barLyrics()) return false;
+    const btn = this.cinemaOn() ? this.cinema.fold : this.cueBar.el.querySelector<HTMLElement>(".hm-cin-btn");
+    if (!btn) return false;
+    const r = btn.getBoundingClientRect();
+    const pad = 6;
+    return r.width > 0 && x >= r.left - pad && x <= r.right + pad && y >= r.top - pad && y <= r.bottom + pad;
+  }
+
   private targetSize(): { w: number; h: number; r: number } {
     let { w, h } = islandSize(State.mode, State.view, State.chatHistory.length);
     if (State.mode === "compact" && Live.current) {
@@ -684,7 +699,7 @@ export class Island {
         h = Live.current.detail ? AGENT_CARD_H : AGENT_CARD_H - 22;
       }
     }
-    const cinema = State.mode === "compact" && !Live.current && barLyrics();
+    const cinema = this.cinemaOn();
     if (cinema) {
       w = CINEMA_W;
       h = CINEMA_H;
@@ -774,6 +789,12 @@ export class Island {
       State.lastActivity = performance.now();
       // A click makes a hover-opened island an ordinary open one.
       this.fsm.userInteracted();
+      if (this.cinemaToggleHit(e.clientX, e.clientY)) {
+        CinemaPref.toggle();
+        Sound.play("blip");
+        State.notify();
+        return;
+      }
       if (State.mode !== "expanded") {
         this.fsm.click();
         return;
@@ -1188,7 +1209,7 @@ export class Island {
     // player and the grid of mini Tocks stay off.
     const barOn = (State.mode === "compact" && !Live.current) || (expanded && State.view === "home");
     // LyricGlow singing: the letterbox takes the bar's place.
-    const cinemaOn = State.mode === "compact" && !Live.current && barLyrics();
+    const cinemaOn = this.cinemaOn();
     this.cinema.sync(cinemaOn);
     this.cueBar.el.style.opacity = (barOn && !cinemaOn) || State.mode === "hidden" ? "1" : "0";
     // Idle: the bar keeps only the time, beside Tock.
@@ -1197,7 +1218,7 @@ export class Island {
     const showMini = false;
     this.mini.sync(showMini);
     // Lyrics being sung: the closed notch stays out while the song plays.
-    this.fsm.keepOpen = barLyrics() && Spotify.state.playing;
+    this.fsm.keepOpen = barLyrics() && Spotify.state.playing && !CinemaPref.mini;
     if (State.mode === "compact") {
       const { w, h } = this.targetSize();
       if (w + h * 10000 !== this.compactW) {
