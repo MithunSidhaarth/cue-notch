@@ -64,6 +64,8 @@ export const PANEL_H = 700;
 export const NOTCH_W = 184;
 export const NOTCH_H = 40;
 export const COMPACT_W = 320;
+/** The closed notch while LyricGlow's lyrics are sung in it. */
+export const LYRICS_W = 560;
 /** The notch after a long idle stretch. */
 export const IDLE_W = 168;
 export const IDLE_H = 32;

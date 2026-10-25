@@ -185,6 +185,8 @@ export class IslandStateMachine {
   alwaysVisible = false;
   /** With alwaysVisible: seconds of nothing happening before the notch becomes the dot. */
   longIdleDelay = 300;
+  /** Lyrics are being sung in the closed notch (island.ts): it does not fold to the dot. */
+  keepOpen = false;
 
   private schedulePetitHide() {
     this.clear("petitHide");
@@ -193,6 +195,8 @@ export class IslandStateMachine {
     if (this.pinned) return;
     this.petitHide = window.setTimeout(() => {
       this.petitHide = null;
+      // Lyrics still being sung: ask again later.
+      if (this.keepOpen) return this.schedulePetitHide();
       if (this.state === "petit" && !this.pinned) this.transition("hidden");
     }, (this.alwaysVisible ? this.longIdleDelay : this.petitToHiddenDelay) * 1000);
   }

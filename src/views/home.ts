@@ -14,6 +14,7 @@ import { Spotify, currentArtwork, formatTime, isAd, spotifyPosition } from "../c
 import { TockEngine, createMiniBot, pruneMiniBots } from "../avatar/tock";
 import { BIG_DOWN, BIG_UP, Missed, formatRate } from "../core/moments";
 import { buildSongExtras } from "./song";
+import { Glow } from "../core/glow";
 import { N_, language, t, tl, tn } from "../i18n/i18n";
 import type { ViewActions, ViewHost } from "./views";
 import { agentTasks, buildAgentsPage, buildSettingsPage, buildFilesPage, buildMediaPage, buildPhonePage, type HomePage } from "./home-pages";
@@ -74,6 +75,12 @@ export function barIsSplit(): boolean {
   return split;
 }
 
+let lyrics = false;
+/** LyricGlow is singing along: the closed notch is the cover and the line, nothing else (island.ts widens it). */
+export function barLyrics(): boolean {
+  return lyrics;
+}
+
 /** Eye colours for the two halves of a split capsule. */
 const SPLIT_EYES = ["#16120a", "#0b3a8f"];
 
@@ -90,8 +97,23 @@ export function buildCueBar(): { el: HTMLElement; sync(): void } {
   const time = h("span", { class: "hm-clock" });
   // Two sessions at once: one half each, in place of the track.
   const halves = h("div", { class: "hm-halves" });
-  const live = h("div", { class: "hm-live" }, art, title, artist);
+  // LyricGlow's line, drawn by the same player extras as the widget page.
+  const song = buildSongExtras(() => {});
+  song.line.classList.add("hm-bar-lyric");
+  const live = h("div", { class: "hm-live" }, art, title, artist, song.line);
   const el = h("div", { class: "hm-bar" }, live, halves, eq, net, missed, dots, time);
+  // Closed notch and LyricGlow singing the same song: the bar becomes the line
+  // (the widget page has its own).
+  window.setInterval(() => {
+    const now = State.mode !== "expanded" ? Glow.live() : null;
+    const on = !!now && (now.state === "ok" || now.state === "loading");
+    if (on !== lyrics) {
+      lyrics = on;
+      el.classList.toggle("lyrics", on);
+      State.notify();
+    }
+    if (on) song.tick();
+  }, 250);
   let dotsKey = "-";
   let missedKey = "-";
   let halvesKey = "-";

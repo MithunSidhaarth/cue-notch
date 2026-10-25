@@ -8,11 +8,12 @@ import {
   ROUNDED_CORNER, VIEW_LAYOUTS, botGlowColor, botGlowOpacity, botPosition, chatPromptHeight,
   islandSize,
   QUESTION_PICKER_H,
+  LYRICS_W,
   type BotEmoteName, type IslandMode, type IslandViewName,
 } from "../core/layout";
 import { Sound } from "../core/sound";
 import { State } from "../core/state";
-import { isMusicPill, islandDances } from "../core/spotify";
+import { Spotify, isMusicPill, islandDances } from "../core/spotify";
 import { TockEngine, Hello, createMiniBot, pruneMiniBots, syncMiniBotStates, tickMiniBots } from "../avatar/tock";
 
 
@@ -27,7 +28,7 @@ import { refreshHookPills } from "./integrations";
 import type { ViewCommand } from "./shortcuts";
 import { LIVE_W, Live, buildLive } from "./live";
 import { buildMiniPlayer } from "./miniplayer";
-import { barIsSplit, buildCueBar } from "../views/home";
+import { barIsSplit, barLyrics, buildCueBar } from "../views/home";
 import { applyMotion } from "../core/motion";
 
 const BOT_OVERHANG = 40;
@@ -679,6 +680,7 @@ export class Island {
         h = Live.current.detail ? AGENT_CARD_H : AGENT_CARD_H - 22;
       }
     }
+    if (State.mode === "compact" && !Live.current && barLyrics()) w = LYRICS_W;
     if (State.mode === "expanded" && State.view === "question" && State.pendingApproval?.questions) {
       h = QUESTION_PICKER_H;
     }
@@ -1183,6 +1185,8 @@ this.cueBar.el.style.opacity = barOn || State.mode === "hidden" ? "1" : "0";
     if (barOn) this.cueBar.sync();
     const showMini = false;
     this.mini.sync(showMini);
+    // Lyrics being sung: the closed notch stays out while the song plays.
+    this.fsm.keepOpen = barLyrics() && Spotify.state.playing;
     if (State.mode === "compact") {
       const w = this.targetSize().w;
       if (w !== this.compactW) {

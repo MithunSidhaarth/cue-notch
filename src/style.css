@@ -3530,6 +3530,14 @@ html[data-dir="rtl"] #views :is(.bubble, .reply .md-p, .reply .md-h, .reply .md-
 .hm-lg-dot { display: inline-block; color: var(--lg-a); animation: hm-lg-dot 900ms ease-in-out infinite; }
 @keyframes hm-lg-dot { 0%, 100% { opacity: 0.35; transform: translateY(0); } 50% { opacity: 1; transform: translateY(-3px); } }
 :root[data-rm] .hm-lg-dot { animation: none; }
+/* The closed notch singing along: the cover, then the line, centred, and nothing else. */
+.hm-bar-lyric { display: none; }
+.hm-bar.lyrics .hm-live > b, .hm-bar.lyrics .hm-live > span, .hm-bar.lyrics .hm-eq, .hm-bar.lyrics .hm-net, .hm-bar.lyrics .hm-clock { display: none; }
+.hm-bar.lyrics .hm-bar-lyric {
+  display: block; flex: 1; min-width: 0; text-align: center;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  margin: 0; font: 650 14px var(--font); letter-spacing: -0.01em;
+}
 .hm-glow-btn svg { color: #ff5fb0; filter: drop-shadow(0 0 4px rgba(255, 45, 149, 0.6)); }
 .hm-saved { overflow: auto; }
 .hm-saved .hm-msg { cursor: pointer; }
