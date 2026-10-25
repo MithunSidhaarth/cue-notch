@@ -3,46 +3,21 @@
 // Media page; the logic is in core/moments.ts.
 //
 // When LyricGlow (the full-screen lyrics app) is running, the line comes from
-// it instead: word-synced, lit word by word in the album's colour, with no
-// request leaving the PC. The ring button opens LyricGlow.
+// it instead (core/glow.ts): word-synced, lit word by word in the album's
+// colour on every animation frame, with no request leaving the PC. The ring
+// button opens LyricGlow.
 
 import { h, svg } from "./dom";
 import { State, DEFAULT_PLUS } from "../core/state";
 import { Bridge } from "../core/bridge";
 import { Spotify, isAd, playerName, spotifyPosition } from "../core/spotify";
-import {
-  Saved, glowMatches, glowPosition, lyricAt, parseLrc, wordProgress, type GlowNow, type LyricLine,
-} from "../core/moments";
+import { Saved, glowLineAt, lyricAt, parseLrc, wordProgress, type GlowNow, type LyricLine } from "../core/moments";
+import { Glow } from "../core/glow";
 import { tl } from "../i18n/i18n";
 
 const HEART = "M12 20.5s-7.5-4.6-7.5-10.2A4.3 4.3 0 0 1 12 7.6a4.3 4.3 0 0 1 7.5 2.7c0 5.6-7.5 10.2-7.5 10.2z";
 const LINES = "M5 7h14M5 12h10M5 17h12";
 const RING = "M12 4.5a7.5 7.5 0 1 1 0 15a7.5 7.5 0 1 1 0-15zM12 10.6a1.4 1.4 0 1 1 0 2.8a1.4 1.4 0 1 1 0-2.8z";
-
-/** What LyricGlow last said, shared by every player on screen and asked for a few times a second. */
-const glow = { now: null as GlowNow | null, readAt: 0, asking: false, lastAsk: 0 };
-
-function askGlow() {
-  const t = Date.now();
-  if (glow.asking || t - glow.lastAsk < 300) return;
-  glow.asking = true;
-  glow.lastAsk = t;
-  void Bridge.lyricglowNow()
-    .then((now) => {
-      glow.now = now ?? null;
-      glow.readAt = Date.now();
-    })
-    .catch(() => { glow.now = null; })
-    .finally(() => { glow.asking = false; });
-}
-
-/** LyricGlow is running and playing the same song as the notch. */
-function glowLive(): GlowNow | null {
-  const track = Spotify.state.track;
-  const now = glow.now;
-  if (!now || !track || isAd(track) || now.state === "idle") return null;
-  return glowMatches(now, track.title, track.artist) ? now : null;
-}
 
 /** The lyrics of the track that is playing, shared by every player on screen. */
 const sheet = { key: "", lines: [] as LyricLine[] };
@@ -99,33 +74,64 @@ export function buildSongExtras(blip: () => void): SongExtras {
   const line = h("div", { class: "hm-lyric hm-ell" });
   let shown = "";
   let words: HTMLElement[] = [];
+  let painted: number[] = [];
   let glowMode = false;
+  Glow.start();
 
   /** LyricGlow's line, a span per word, so each one can light up as it is sung. */
   function showGlow(now: GlowNow) {
-    const l = now.line;
-    const key = now.state === "ok" ? `${l?.start ?? -1}|${l?.text ?? ""}` : `state:${now.state}`;
+    const lines = Glow.lines;
+    const pos = Glow.position(performance.now());
+    const i = glowLineAt(lines, pos);
+    const l = i >= 0 ? lines[i] : null;
+    // Between lines for a while (a solo, a long breath): the dots, as in an interlude.
+    const next = lines[i + 1];
+    const resting = !!l && !l.interlude && pos > l.end + 1.5 && (!next || next.start - pos > 3);
+    const waiting = now.state === "loading" || !!l?.interlude || resting;
+    const key = waiting ? "wait" : now.state === "ok" && l ? `${i}|${l.start}|${l.text}` : `state:${now.state}`;
     line.style.setProperty("--lg-a", now.primary ?? "#ff2d95");
     line.style.setProperty("--lg-b", now.secondary ?? now.primary ?? "#7b5cff");
     if (key !== shown) {
       shown = key;
       line.replaceChildren();
       words = [];
-      line.classList.toggle("wait", now.state === "loading" || !!l?.interlude);
-      if (now.state === "loading" || l?.interlude) {
-        line.append(...[0, 1, 2].map((i) => h("span", { class: "hm-lg-dot", style: `animation-delay:${i * 140}ms` }, "•")));
+      line.classList.toggle("wait", waiting);
+      if (waiting) {
+        line.append(...[0, 1, 2].map((n) => h("span", { class: "hm-lg-dot", style: `animation-delay:${n * 140}ms` }, "•")));
       } else if (now.state === "ok" && l && l.text) {
-        words = l.words.map((w) => h("span", { class: "hm-lg-w" }, w.text));
+        words = l.words.length
+          ? l.words.map((w) => h("span", { class: "hm-lg-w" }, w.text))
+          : [h("span", { class: "hm-lg-w" }, l.text)];
         line.append(...words);
       }
       line.classList.remove("in");
       void line.offsetWidth;
       line.classList.add("in");
+      painted = [];
     }
     if (!words.length || !l) return;
-    const progress = wordProgress(l.words, glowPosition(now, glow.readAt, Date.now()));
-    words.forEach((el, i) => el.style.setProperty("--p", progress[i].toFixed(3)));
+    const timed = l.words.length ? l.words : [{ text: l.text, start: l.start, end: l.end }];
+    const progress = wordProgress(timed, pos);
+    words.forEach((el, n) => {
+      // Only what changed is written: a style write per word per frame is wasted work.
+      const p = Math.round(progress[n] * 1000) / 1000;
+      if (painted[n] === p) return;
+      painted[n] = p;
+      el.style.setProperty("--p", String(p));
+    });
   }
+
+  /** While LyricGlow's line is on screen it is drawn every frame, not only when the island ticks. */
+  let frameOn = false;
+  const frame = () => {
+    const live = glowMode ? Glow.live() : null;
+    if (!live || !line.isConnected || line.offsetParent === null) {
+      frameOn = false;
+      return;
+    }
+    showGlow(live);
+    requestAnimationFrame(frame);
+  };
 
   return {
     buttons: h("div", { class: "hm-song-btns" }, glowBtn, lyricsBtn, heart),
@@ -134,7 +140,7 @@ export function buildSongExtras(blip: () => void): SongExtras {
       const track = Spotify.state.track;
       heart.classList.toggle("on", !!track && Saved.has(track));
       heart.style.display = track && !isAd(track) ? "" : "none";
-      const live = glowLive();
+      const live = Glow.live();
       glowBtn.style.display = live ? "" : "none";
       lyricsBtn.style.display = live ? "none" : "";
       lyricsBtn.classList.toggle("on", lyricsOn());
@@ -142,15 +148,17 @@ export function buildSongExtras(blip: () => void): SongExtras {
       if (!live) ensureLyrics();
     },
     tick() {
-      askGlow();
-      const live = glowLive();
+      const live = Glow.live();
       line.classList.toggle("hm-lg", !!live);
       glowBtn.style.display = live ? "" : "none";
       lyricsBtn.style.display = live ? "none" : "";
       if (live) {
         glowMode = true;
         line.style.display = "";
-        showGlow(live);
+        if (!frameOn) {
+          frameOn = true;
+          requestAnimationFrame(frame);
+        }
         return;
       }
       if (glowMode) {

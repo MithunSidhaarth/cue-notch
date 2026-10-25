@@ -2,7 +2,7 @@
 // page is opened in a plain browser, so the island can be iterated on with
 // `npm run dev` alone.
 
-import type { GlowNow } from "./moments";
+import type { GlowLine, GlowNow } from "./moments";
 import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
 import { getCurrentWebview } from "@tauri-apps/api/webview";
@@ -246,6 +246,8 @@ export const Bridge = {
     call<string | null>("lyrics", { title, artist, album, duration }),
   /** What LyricGlow is showing (synced line, word timings, album colours), or null when it is not running. */
   lyricglowNow: () => call<GlowNow | null>("lyricglow_now"),
+  /** Every line of the song LyricGlow has loaded, with word timings, or null (not running, or older than 1.4). */
+  lyricglowLyrics: () => call<{ lyricsId: number; title?: string | null; artist?: string | null; lines: GlowLine[] } | null>("lyricglow_lyrics"),
   /** Brings the LyricGlow window to the front. */
   lyricglowOpen: () => call<boolean>("lyricglow_open"),
   /** Bytes received and sent since boot, over the real network adapters. */

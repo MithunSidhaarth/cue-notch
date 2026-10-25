@@ -64,6 +64,15 @@ export interface GlowWord {
   end: number;
 }
 
+/** One line of the song, as LyricGlow sends it. */
+export interface GlowLine {
+  text: string;
+  interlude: boolean;
+  start: number;
+  end: number;
+  words: GlowWord[];
+}
+
 /** What LyricGlow (the full-screen lyrics app) answers on its loopback port. */
 export interface GlowNow {
   title?: string | null;
@@ -72,7 +81,9 @@ export interface GlowNow {
   playing: boolean;
   /** idle, loading, none (no lyrics for this song) or ok. */
   state: string;
-  line?: { text: string; interlude: boolean; start: number; end: number; words: GlowWord[] } | null;
+  line?: GlowLine | null;
+  /** Changes when LyricGlow loads other lyrics; absent before LyricGlow 1.4. */
+  lyricsId?: number;
   primary?: string;
   secondary?: string;
 }
@@ -80,6 +91,46 @@ export interface GlowNow {
 /** LyricGlow's position at `at` (ms), run forward from when it was read at `readAt` (ms). */
 export function glowPosition(now: GlowNow, readAt: number, at: number): number {
   return now.playing ? now.position + Math.max(0, at - readAt) / 1000 : now.position;
+}
+
+/**
+ * LyricGlow's position, run on locally so the words can move every frame
+ * between reads. A small drift is eased out a quarter at a time, so the words
+ * never jump; a seek, a new song or a pause is taken at once. Times are in ms
+ * (performance.now), positions in seconds.
+ */
+export class GlowClock {
+  private base = 0;
+  private at = 0;
+  private playing = false;
+  private set = false;
+
+  read(at: number): number {
+    return this.playing ? this.base + Math.max(0, at - this.at) / 1000 : this.base;
+  }
+
+  /** A reading of `position`, taken at `at`. */
+  update(position: number, playing: boolean, at: number) {
+    const drift = position - this.read(at);
+    this.base = !this.set || playing !== this.playing || Math.abs(drift) > 0.6 ? position : this.read(at) + drift / 4;
+    this.at = at;
+    this.playing = playing;
+    this.set = true;
+  }
+
+  reset() {
+    this.set = false;
+  }
+}
+
+/** The line being sung at `seconds`, a touch early so it is up as it starts; -1 before the first. */
+export function glowLineAt(lines: GlowLine[], seconds: number, lead = 0.12): number {
+  let found = -1;
+  for (let i = 0; i < lines.length; i++) {
+    if (lines[i].start > seconds + lead) break;
+    found = i;
+  }
+  return found;
 }
 
 /** How much of each word has been sung at `seconds`, from 0 to 1. */

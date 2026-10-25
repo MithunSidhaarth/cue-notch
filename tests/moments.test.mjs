@@ -79,3 +79,28 @@ test("LyricGlow's line runs on from when it was read, and lights words as they a
   assert.equal(glowMatches(now, "Party Girl", "StaySolidRocky, Lil Uzi Vert"), true);
   assert.equal(glowMatches(now, "Another Song", "StaySolidRocky"), false);
 });
+
+test("LyricGlow's clock runs smoothly between reads, eases out drift and takes a seek at once", async () => {
+  const { GlowClock, glowLineAt } = await import("../src/core/moments.ts");
+  const c = new GlowClock();
+  c.update(10, true, 1000);
+  assert.equal(c.read(1500), 10.5);
+  // 40 ms of drift is eased out a quarter at a time, not jumped.
+  c.update(10.54, true, 1500);
+  assert.equal(c.read(1500), 10.51);
+  // A seek is taken whole.
+  c.update(60, true, 2000);
+  assert.equal(c.read(2000), 60);
+  // Paused, it holds still.
+  c.update(61, false, 3000);
+  assert.equal(c.read(9000), 61);
+
+  const lines = [
+    { text: "one", interlude: false, start: 5, end: 7, words: [] },
+    { text: "two", interlude: false, start: 8, end: 9, words: [] },
+  ];
+  assert.equal(glowLineAt(lines, 2), -1);
+  assert.equal(glowLineAt(lines, 4.9), 0, "a touch early");
+  assert.equal(glowLineAt(lines, 7.5), 0);
+  assert.equal(glowLineAt(lines, 20), 1);
+});
