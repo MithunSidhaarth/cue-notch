@@ -8,11 +8,12 @@ import {
   ROUNDED_CORNER, VIEW_LAYOUTS, botGlowColor, botGlowOpacity, botPosition, chatPromptHeight,
   islandSize,
   QUESTION_PICKER_H,
+  CINEMA_W, CINEMA_H, CINEMA_CORNER,
   type BotEmoteName, type IslandMode, type IslandViewName,
 } from "../core/layout";
 import { Sound } from "../core/sound";
 import { State } from "../core/state";
-import { isMusicPill, islandDances } from "../core/spotify";
+import { Spotify, isMusicPill, islandDances } from "../core/spotify";
 import { TockEngine, Hello, createMiniBot, pruneMiniBots, syncMiniBotStates, tickMiniBots } from "../avatar/tock";
 
 
@@ -27,7 +28,8 @@ import { refreshHookPills } from "./integrations";
 import type { ViewCommand } from "./shortcuts";
 import { LIVE_W, Live, buildLive } from "./live";
 import { buildMiniPlayer } from "./miniplayer";
-import { barIsSplit, buildCueBar } from "../views/home";
+import { barIsSplit, barLyrics, buildCueBar } from "../views/home";
+import { CinemaPref, buildCinema } from "../views/cinema";
 import { applyMotion } from "../core/motion";
 
 const BOT_OVERHANG = 40;
@@ -77,6 +79,7 @@ export class Island {
   private peeking = false;
   /** The bar of the closed notch and of the widget page (views/home.ts). */
   private cueBar!: { el: HTMLElement; sync(): void };
+  private cinema!: { el: HTMLElement; fold: HTMLElement; sync(on: boolean): void };
   private miniGrid!: HTMLElement;
   private live = buildLive();
   private mini = buildMiniPlayer();
@@ -271,6 +274,7 @@ export class Island {
 
     this.header = buildHeader(actions);
     this.cueBar = buildCueBar();
+    this.cinema = buildCinema();
     this.views = buildViews(actions, () => this.animateGeometry(false));
     this.viewsEl = h("div", { id: "views" });
     for (const v of this.views.values()) this.viewsEl.append(v.el);
@@ -295,6 +299,7 @@ export class Island {
       this.uploadCanvas.el,
       this.contentEl,
       this.cueBar.el,
+      this.cinema.el,
     );
     this.islandEl = h(
       "div",
@@ -667,6 +672,21 @@ export class Island {
 
   // ── Geometry ────────────────────────────────────────────────────────────────
 
+  /** LyricGlow is singing in the closed notch and the user has not folded the letterbox away. */
+  private cinemaOn(): boolean {
+    return State.mode === "compact" && !Live.current && barLyrics() && !CinemaPref.mini;
+  }
+
+  /** A click on Cinema's minimise, or on the bar's button that brings it back. */
+  private cinemaToggleHit(x: number, y: number): boolean {
+    if (State.mode !== "compact" || Live.current || !barLyrics()) return false;
+    const btn = this.cinemaOn() ? this.cinema.fold : this.cueBar.el.querySelector<HTMLElement>(".hm-cin-btn");
+    if (!btn) return false;
+    const r = btn.getBoundingClientRect();
+    const pad = 6;
+    return r.width > 0 && x >= r.left - pad && x <= r.right + pad && y >= r.top - pad && y <= r.bottom + pad;
+  }
+
   private targetSize(): { w: number; h: number; r: number } {
     let { w, h } = islandSize(State.mode, State.view, State.chatHistory.length);
     if (State.mode === "compact" && Live.current) {
@@ -679,6 +699,11 @@ export class Island {
         h = Live.current.detail ? AGENT_CARD_H : AGENT_CARD_H - 22;
       }
     }
+    const cinema = this.cinemaOn();
+    if (cinema) {
+      w = CINEMA_W;
+      h = CINEMA_H;
+    }
     if (State.mode === "expanded" && State.view === "question" && State.pendingApproval?.questions) {
       h = QUESTION_PICKER_H;
     }
@@ -686,7 +711,7 @@ export class Island {
       w = HOME_TALL_W;
       h = HOME_TALL_H;
     }
-    const r = State.mode !== "expanded" ? ROUNDED_CORNER : State.view === "home" ? 28 : EXPANDED_CORNER;
+    const r = cinema ? CINEMA_CORNER : State.mode !== "expanded" ? ROUNDED_CORNER : State.view === "home" ? 28 : EXPANDED_CORNER;
     return { w, h, r };
   }
 
@@ -764,6 +789,12 @@ export class Island {
       State.lastActivity = performance.now();
       // A click makes a hover-opened island an ordinary open one.
       this.fsm.userInteracted();
+      if (this.cinemaToggleHit(e.clientX, e.clientY)) {
+        CinemaPref.toggle();
+        Sound.play("blip");
+        State.notify();
+        return;
+      }
       if (State.mode !== "expanded") {
         this.fsm.click();
         return;
@@ -1181,16 +1212,21 @@ export class Island {
     // The bar carries the track and the agents now (design/cue.html): the mini
     // player and the grid of mini Tocks stay off.
     const barOn = (State.mode === "compact" && !Live.current) || (expanded && State.view === "home");
-this.cueBar.el.style.opacity = barOn || State.mode === "hidden" ? "1" : "0";
+    // LyricGlow singing: the letterbox takes the bar's place.
+    const cinemaOn = this.cinemaOn();
+    this.cinema.sync(cinemaOn);
+    this.cueBar.el.style.opacity = (barOn && !cinemaOn) || State.mode === "hidden" ? "1" : "0";
     // Idle: the bar keeps only the time, beside Tock.
     this.cueBar.el.classList.toggle("idle", State.mode === "hidden");
     if (barOn) this.cueBar.sync();
     const showMini = false;
     this.mini.sync(showMini);
+    // Lyrics being sung: the closed notch stays out while the song plays.
+    this.fsm.keepOpen = barLyrics() && Spotify.state.playing && !CinemaPref.mini;
     if (State.mode === "compact") {
-      const w = this.targetSize().w;
-      if (w !== this.compactW) {
-        this.compactW = w;
+      const { w, h } = this.targetSize();
+      if (w + h * 10000 !== this.compactW) {
+        this.compactW = w + h * 10000;
         this.animateGeometry(false);
       }
     }

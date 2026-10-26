@@ -788,6 +788,7 @@ pub fn run() {
             files::shelf_list,
             moments::lyrics,
             moments::lyricglow_now,
+            moments::lyricglow_lyrics,
             moments::lyricglow_open,
             moments::net_totals,
             sysevents::clipboard_copy_secret,

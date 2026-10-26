@@ -3576,3 +3576,55 @@ html[data-dir="rtl"] #views :is(.bubble, .reply .md-p, .reply .md-h, .reply .md-
 @keyframes card-pop { 0% { opacity: 0; transform: scale(0.3) rotate(-25deg); } 70% { opacity: 1; transform: scale(1.25); } 100% { transform: none; } }
 @keyframes card-in { from { opacity: 0; transform: translateY(8px); } }
 :root[data-rm] #live.agent.on * { animation: none !important; }
+
+/* Cinema (views/cinema.ts): while LyricGlow sings, the closed notch is a
+   letterbox showing the song one word at a time in the album's colours. */
+@font-face { font-family: "Unbounded"; font-weight: 700; font-display: block; src: url("./assets/fonts/unbounded-latin-700-normal.ttf") format("truetype"); }
+@font-face { font-family: "Unbounded"; font-weight: 900; font-display: block; src: url("./assets/fonts/unbounded-latin-900-normal.ttf") format("truetype"); }
+.cin {
+  --lg-a: #ff2d95; --lg-b: #7b5cff;
+  position: absolute; inset: 0; opacity: 0; pointer-events: none; overflow: hidden;
+  transition: opacity 0.22s ease;
+}
+.cin.on { opacity: 1; }
+.cin::before {
+  content: ""; position: absolute; inset: 0;
+  background: radial-gradient(420px 120px at 50% 62%, color-mix(in srgb, var(--lg-a) 24%, transparent), transparent 78%);
+}
+.cin-head { position: absolute; left: 62px; right: 26px; top: 0; height: 40px; display: flex; align-items: center; gap: 10px; }
+.cin-art { width: 22px; height: 22px; border-radius: 6px; flex: none; background: linear-gradient(135deg, var(--lg-a), var(--lg-b)) center/cover; }
+.cin-meta { flex: 1; min-width: 0; font: 600 11px var(--font); letter-spacing: 0.2em; text-transform: uppercase; color: #8f8a7e; }
+.cin-time { flex: none; font: 600 11px var(--font); letter-spacing: 0.12em; color: #8f8a7e; font-variant-numeric: tabular-nums; }
+.cin-stage { position: absolute; left: 0; right: 0; top: 40px; height: 108px; display: flex; align-items: center; }
+.cin-past, .cin-next { flex: 1 1 0; min-width: 0; display: flex; align-items: center; gap: 22px; overflow: hidden; white-space: nowrap; }
+.cin-past { justify-content: flex-end; padding-right: 26px; -webkit-mask-image: linear-gradient(90deg, transparent, #000 30%); mask-image: linear-gradient(90deg, transparent, #000 30%); }
+.cin-next { justify-content: flex-start; padding-left: 26px; -webkit-mask-image: linear-gradient(270deg, transparent, #000 30%); mask-image: linear-gradient(270deg, transparent, #000 30%); }
+.cin-w { font: 700 30px "Unbounded", var(--font); letter-spacing: -0.02em; color: #fff; }
+.cin-past .d1 { opacity: 0.5; }
+.cin-past .d2 { opacity: 0.3; font-size: 26px; filter: blur(0.8px); }
+.cin-past .d3 { opacity: 0.16; font-size: 23px; filter: blur(1.6px); }
+.cin-next .d1 { opacity: 0.24; }
+.cin-next .d2 { opacity: 0.14; font-size: 26px; filter: blur(0.8px); }
+.cin-next .d3 { opacity: 0.08; font-size: 23px; filter: blur(1.6px); }
+.cin-next .nl:first-child, .cin-next :not(.nl) + .nl { margin-left: 22px; }
+.cin-now { flex: none; display: flex; align-items: center; justify-content: center; }
+.cin-word {
+  --p: 0;
+  font: 900 64px/1 "Unbounded", var(--font); letter-spacing: -0.04em; white-space: nowrap;
+  /* The sung part in white running into the album's colour, a soft edge, the rest dim. */
+  background: linear-gradient(90deg, #fff 0, var(--lg-b) calc(var(--p) * 114% - 14%), rgba(255, 255, 255, 0.2) calc(var(--p) * 114%));
+  -webkit-background-clip: text; background-clip: text; color: transparent;
+  filter: drop-shadow(0 0 26px color-mix(in srgb, var(--lg-a) 50%, transparent));
+}
+.cin-word.pop { animation: cin-pop 240ms cubic-bezier(0.22, 1.5, 0.36, 1); }
+@keyframes cin-pop { from { transform: scale(0.9) translateY(3px); opacity: 0.75; } }
+/* Minimise (Cinema) and its way back (the ordinary bar): a short bar, and a box. */
+.cin-fold, .hm-cin-btn { flex: none; position: relative; width: 26px; height: 22px; border-radius: 7px; background: rgba(255, 255, 255, 0.08); }
+.cin-fold::after { content: ""; position: absolute; left: 8px; right: 8px; top: 10px; height: 2px; border-radius: 1px; background: rgba(255, 255, 255, 0.75); }
+.hm-cin-btn { display: none; width: 22px; height: 18px; border-radius: 6px; }
+.hm-cin-btn::after { content: ""; position: absolute; left: 6px; right: 6px; top: 5px; bottom: 5px; border: 1.5px solid rgba(255, 255, 255, 0.75); border-radius: 2px; }
+.hm-bar.lyrics .hm-cin-btn { display: block; }
+.cin-word.cin-wait { display: flex; gap: 18px; background: none; filter: none; }
+.cin-word.cin-wait i { width: 14px; height: 14px; border-radius: 7px; background: var(--lg-a); animation: hm-lg-dot 900ms ease-in-out infinite; }
+.cin-wave { position: absolute; left: 0; bottom: 4px; width: 100%; height: 22px; opacity: 0.85; }
+:root[data-rm] .cin-word.pop, :root[data-rm] .cin-word.cin-wait i { animation: none; }

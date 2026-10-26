@@ -57,15 +57,26 @@ fn lyricglow_client() -> Option<reqwest::Client> {
 /// Nothing leaves the PC: the request goes to 127.0.0.1 only.
 #[tauri::command]
 pub async fn lyricglow_now() -> Option<serde_json::Value> {
+    lyricglow_get("/now", 64 * 1024).await
+}
+
+/// Every line of the song LyricGlow has loaded, with word timings, so the page
+/// can run the words on its own clock. Asked once per song.
+#[tauri::command]
+pub async fn lyricglow_lyrics() -> Option<serde_json::Value> {
+    lyricglow_get("/lyrics", 1024 * 1024).await
+}
+
+async fn lyricglow_get(path: &str, cap: usize) -> Option<serde_json::Value> {
     let response = lyricglow_client()?
-        .get(format!("{LYRICGLOW}/now"))
+        .get(format!("{LYRICGLOW}{path}"))
         .send()
         .await
         .ok()?;
     if !response.status().is_success() {
         return None;
     }
-    let body = crate::net::read_capped(response, 64 * 1024).await.ok()?;
+    let body = crate::net::read_capped(response, cap).await.ok()?;
     serde_json::from_slice(&body).ok()
 }
 
