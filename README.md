@@ -52,6 +52,7 @@ Supported: Claude Code, Claude Desktop, Codex, GitHub Copilot CLI, Gemini CLI, C
 - **Any player.** Spotify, Apple Music, YouTube in a browser, VLC: anything that reports to Windows' media controls, with play, pause, next, previous and progress.
 - **Lyrics.** The line being sung, under the track name. Off until you tap the lines button on the cover (see Privacy).
 - **LyricGlow.** When [LyricGlow](https://github.com/MithunSidhaarth) is running, the line comes from it instead: word-synced, each word lighting up in the album's colours as it is sung, read over 127.0.0.1 so nothing leaves the PC. The ring button on the cover opens LyricGlow.
+- **Cinema.** While LyricGlow sings the song that is playing, the closed notch opens into a wide letterbox and shows the song one word at a time: the sung word huge in the album's colours, the words before it drifting off to the left, the next ones waiting on the right, and a wave along the bottom that moves with the singing. The minimise button folds it back into the ordinary notch, and the lyrics button in the bar brings it back.
 - **Heart.** Saves the song to Cue's own list on the Media tab, with a link back to the service it came from. It works the same for every player because it is Cue's list, not the service's library.
 
 ### Phone
